@@ -407,7 +407,7 @@ Press any key to continue . . . ");
             public static Dictionary<GridCellDisplayType, string> GridCellDisplayTypeStringDict = new() {
                 [GridCellDisplayType.Flag] = "⚑ ",
                 [GridCellDisplayType.Mine] = "💣 ",
-                [GridCellDisplayType.Covered] = "■ "
+                [GridCellDisplayType.Covered] = "■ " // □
             };
         }
 
