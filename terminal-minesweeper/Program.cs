@@ -1,6 +1,8 @@
 ﻿using static terminal_minesweeper.Program.Mine;
 using static terminal_minesweeper.Program.MinesweeperGame;
+using static terminal_minesweeper.Program.MinesweeperGame.GridCell;
 
+// TODO: Try to set everything to private and then only set some stuff to public
 namespace terminal_minesweeper {
     internal class Program {
         const string Name = "terminal-minesweeper";
@@ -39,52 +41,56 @@ Press any key to continue . . . ");
             public Coords CurPos {
                 get => _curPos;
                 set {
-                    if (value.Y >= Grid.GetLength(0)) value.Y = 0;
-                    if (value.Y < 0) value.Y = Grid.GetLength(0) - 1;
-                    if (value.X >= Grid.GetLength(1)) value.X = 0;
-                    if (value.X < 0) value.X = Grid.GetLength(1) - 1;
+                    if (value.Y >= GameGrid.GetLength(0)) value.Y = 0;
+                    if (value.Y < 0) value.Y = GameGrid.GetLength(0) - 1;
+                    if (value.X >= GameGrid.GetLength(1)) value.X = 0;
+                    if (value.X < 0) value.X = GameGrid.GetLength(1) - 1;
                     _curPos = value;
                 }
             }
-            public GridCellValue[,] Grid = new GridCellValue[0, 0];
+            public Grid GameGrid = new(0, 0);
             public List<Mine> Mines = new();
-            public List<Coords> MissedCoords = new();
+            public List<Coords> UncoveredCellsCoords = new();
+            public int CellsUncovered = 0;
             public bool GameEnd = false;
-            public int AttemptsLeft;
+            public bool FirstAttempt;
 
             public bool Loop() {
                 Console.Clear();
                 // reset vars
-                Grid = new GridCellValue[Consts.GridSize.Y, Consts.GridSize.X];
+                GameGrid = new(Consts.GridSize.Y, Consts.GridSize.X);
                 CurPos = new(0, 0);
                 GameEnd = false;
                 Mines = new();
-                MissedCoords = new();
+                UncoveredCellsCoords = new();
+                CellsUncovered = 0;
+                FirstAttempt = true;
 
                 // generate random mines
                 int minesToAddCount = RandomGen.Next(Consts.MineCountRange.Item1, Consts.MineCountRange.Item2 + 1);
                 foreach (int i in Enumerable.Range(0, minesToAddCount)) {
                     Mines.Add(new Mine());
                 }
-                Mines.ForEach((mine) => { mine.Coordinates = GetRandomMineCoords(mine, Grid, this); });
+                Mines.ForEach((mine) => { mine.Coordinates = GetRandomMineCoords(mine, GameGrid, this); });
 
                 bool shotSuccess = false;
-                while (AttemptsLeft > 0) {
-                    CursorShotInput();
-                    shotSuccess = CheckShot();
+                while (!GameEnd) {
                     UpdateTerminal();
-                    AttemptsLeft--;
-                    if (!shotSuccess) {
-                        MissedCoords.Add(CurPos);
-                        if (AttemptsLeft <= 0) break;
-                        ShowInfoScreen(new List<StringColorPair> {
-                            new("You MISSED! You have ", ConsoleColor.Gray),
-                            new($"{AttemptsLeft} {(AttemptsLeft == 1 ? "attempt" : "attempts")} left"),
-                            new(".", ConsoleColor.Gray)
-                        });
-                    } else break;
+                    //CursorShotInput();
+                    //shotSuccess = CheckShot();
+                    //UpdateTerminal();
+                    //AttemptsLeft--;
+                    //if (!shotSuccess) {
+                    //    MissedCoords.Add(CurPos);
+                    //    if (AttemptsLeft <= 0) break;
+                    //    ShowInfoScreen(new List<StringColorPair> {
+                    //        new("You MISSED! You have ", ConsoleColor.Gray),
+                    //        new($"{AttemptsLeft} {(AttemptsLeft == 1 ? "attempt" : "attempts")} left"),
+                    //        new(".", ConsoleColor.Gray)
+                    //    });
+                    //} else break;
                 }
-                GameEnd = true;
+                //GameEnd = true;
                 UpdateTerminal();
 
                 Thread.Sleep(300);
@@ -103,8 +109,7 @@ Press any key to continue . . . ");
                     Console.Write("LOSE");
                 }
                 Console.ForegroundColor = ConsoleColor.White;
-                int attempts = Consts.MaxTries - AttemptsLeft;
-                Console.WriteLine($"! (in {attempts} {(attempts == 1 ? "attempt" : "attempts")})");
+                Console.WriteLine($"! ({CellsUncovered} cells uncovered, {""} flags placed)");
                 return EndScreenInput();
             }
 
@@ -158,15 +163,13 @@ Press any key to continue . . . ");
             }
 
             private bool CheckShot() {
-                bool shotSuccess = false;
-                foreach (var ship in Mines) {
-                    if (ship.IsAt(CurPos)) {
-                        shotSuccess = true;
-                        ship.Shot = true;
-                    }
+                Mine? mine = MineAt(CurPos);
+                if (mine != null) {
+                    mine.Uncovered = true;
+                    return true;
                 }
 
-                return shotSuccess;
+                return false;
             }
 
             private void CursorShotInput() {
@@ -199,56 +202,67 @@ Press any key to continue . . . ");
             public void UpdateTerminal() {
                 //Console.Clear();
                 Console.SetCursorPosition(0, 0);
-                UpdateGrid(ref Grid, Mines, MissedCoords);
-                PrintColoredPairs(CreateGridString(Grid, this, CurPos));
+                UpdateGrid(ref GameGrid, Mines, UncoveredCellsCoords);
+                PrintColoredPairs(CreateGridString(GameGrid, this, CurPos));
             }
 
-            public Mine? ShipAt(Coords coords) {
-                foreach (var ship in Mines) {
-                    if (ship.CoordList.Contains(coords)) return ship;
+            public Mine? MineAt(Coords coords) {
+                foreach (var mine in Mines) {
+                    if (mine.Coordinates == coords) return mine;
                 }
                 return null;
             }
 
-            public static void UpdateGrid(ref GridCellValue[,] grid, List<Mine> ships, List<Coords> missedCoords) {
-                Array.Clear(grid);
-                foreach (var ship in ships) {
-                    List<Coords> shipCoords = ship.CoordList;
-                    foreach (var coords in shipCoords) {
-                        GridCellValue cellValue = ship.Shot ? GridCellValue.ShotShip : GridCellValue.Ship;
-                        grid[coords.Y, coords.X] = cellValue;
-                    }
-                    foreach (var coords in missedCoords) {
-                        grid[coords.Y, coords.X] = GridCellValue.Missed;
+            public static void UpdateGrid(ref Grid grid, List<Mine> mines, List<Coords> flagsCoords) {
+                grid.Reset();
+                foreach (var mine in mines) {
+                    Coords mineCoords = mine.Coordinates;
+                    bool uncovered = mine.Uncovered;
+                    GridCellDisplayType cellDisplayType = uncovered ? GridCellDisplayType.Uncovered : GridCellDisplayType.Covered;
+                    grid[mineCoords.Y, mineCoords.X] = new(cellDisplayType);
+                    foreach (var flagCoords in flagsCoords) {
+                        grid[flagCoords.Y, flagCoords.X] = new(GridCellDisplayType.Flag);
                     }
                 }
             }
 
-            public static Coords GetRandomMineCoords(in Mine ship, in GridCellValue[,] grid, MinesweeperGame game) {
-                List<Coords> allShipCoords = new();
-                foreach (var shipItem in game.Mines) {
-                    allShipCoords.AddRange(shipItem.CoordList);
-                }
+            public static Coords GetRandomMineCoords(in Mine mine, in Grid grid, MinesweeperGame game) {
+                List<Coords> allMineCoords = game.Mines.Select(mineItem => mineItem.Coordinates).ToList();
                 int tries = 0;
-                Coords newShipCoords;
-                while (tries < ((game.Grid.GetLength(0) + game.Grid.GetLength(1)) * 3)) {
-                    newShipCoords = new(
-                        game.RandomGen.Next(0, (grid.GetLength(1) - ship.SizeX) + 1),
-                        game.RandomGen.Next(0, (grid.GetLength(0) - ship.SizeY) + 1)
+                Coords newMineCoords;
+                while (tries < ((game.GameGrid.GetLength(0) + game.GameGrid.GetLength(1)) * 3)) {
+                    newMineCoords = new(
+                        game.RandomGen.Next(0, grid.GetLength(1)),
+                        game.RandomGen.Next(0, grid.GetLength(0))
                     );
-                    Mine newShip = new(ship.SizeX, ship.SizeY, newShipCoords);
-                    List<Coords> allNewShipCoords = newShip.CoordList;
-                    // Return the new coords if the new ship's coordinates don't overlap with any other ship's coordinates
-                    if (!allShipCoords.Intersect(allNewShipCoords).Any()) return newShipCoords;
+                    if (!allMineCoords.Contains(newMineCoords)) return newMineCoords;
                     tries++;
                 }
-                newShipCoords = new(0, 0);
-                return newShipCoords;
+                return new(0, 0);
             }
 
-            public enum GridCellValue {
-                Empty,
-                Mine
+            public class GridCell {
+                public GridCellDisplayType Type = GridCellDisplayType.Covered;
+                public GridCellDisplayData Data = new();
+                public GridCell(GridCellDisplayType type = GridCellDisplayType.Covered, GridCellDisplayData? data = null) {
+                    Type = type;
+                    Data = data ?? Data;
+
+                }
+                public enum GridCellDisplayType {
+                    Covered,
+                    Uncovered,
+                    Flag,
+                    Mine
+                }
+                public class GridCellDisplayData {
+                    public int? Number;
+                    public ConsoleColor Color;
+                    public GridCellDisplayData(int? number = null, ConsoleColor color = ConsoleColor.White) {
+                        Number = number;
+                        Color = color;
+                    }
+                }
             }
 
             public static void ShowInfoScreen(List<StringColorPair> stringColorPairs) {
@@ -267,6 +281,27 @@ Press any key to continue . . . ");
             public static void ShowInfoScreen(string text) {
                 ShowInfoScreen(new List<StringColorPair>() { new(text) });
             }
+
+            public class Grid {
+                private GridCell[,] _grid = new GridCell[0, 0];
+                public Grid(int sizeY, int sizeX) {
+                    _grid = new GridCell[sizeY, sizeX];
+                    Reset();
+                }
+                public void Reset() {
+                    _grid = new GridCell[_grid.GetLength(0), _grid.GetLength(1)];
+                    for (int y = 0; y < _grid.GetLength(0); y++) {
+                        for (int x = 0; x < _grid.GetLength(1); x++) {
+                            _grid[y, x] = new();
+                        }
+                    }
+                }
+                public GridCell this[int indexY, int indexX] {
+                    get => _grid[indexY, indexX];
+                    set => _grid[indexY, indexX] = value;
+                }
+                public int GetLength(int dimension) => _grid.GetLength(dimension);
+            }
         }
 
         public static void PrintColoredPairs(List<StringColorPair> colorStringPairs) {
@@ -279,24 +314,25 @@ Press any key to continue . . . ");
             Console.WriteLine();
         }
 
-        public static List<StringColorPair> CreateGridString(GridCellValue[,] grid, MinesweeperGame game, Coords cursor) {
+        public static List<StringColorPair> CreateGridString(Grid grid, MinesweeperGame game, Coords cursor) {
             List<StringColorPair> output = new();
             for (int y = 0; y < grid.GetLength(0); y++) {
                 for (int x = 0; x < grid.GetLength(1); x++) {
-                    var gridItem = grid[y, x];
+                    GridCell gridItem = grid[y, x];
+                    gridItem.Data.Color = ConsoleColor.White;
 
-                    // hide ships if the game is not finished
-                    if (gridItem == GridCellValue.Ship && !game.GameEnd) {
-                        gridItem = GridCellValue.None;
+                    // show the mines if the game has ended
+                    if ((game.MineAt(new(x, y)) != null) && game.GameEnd) {
+                        gridItem.Type = GridCellDisplayType.Mine;
                     }
 
                     // draw cursor
                     if (cursor.X == x && cursor.Y == y) {
-                        gridItem = GridCellValue.Cursor;
+                        gridItem.Data.Color = ConsoleColor.DarkYellow;
                     }
 
-                    var item = GridCellValueSymbolColorDict[gridItem];
-                    output.Add(new(item.Str, item.Color));
+                    var itemStr = GridCellDisplayTypeStringDict[gridItem.Type];
+                    output.Add(new(itemStr, gridItem.Data.Color));
                 }
                 output.Add(new("\n", ConsoleColor.White));
             }
@@ -306,7 +342,7 @@ Press any key to continue . . . ");
             // add the horizontal border grid (A, B, C, ...)
             string loopingAlphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
             int alphabetFullLoopCount = 0;
-            int loopCount = game.Grid.GetLength(1);
+            int loopCount = game.GameGrid.GetLength(1);
             foreach (int i in Enumerable.Range(0, loopCount)) {
                 output.Insert(i,
                     new(loopingAlphabet[0].ToString() + (alphabetFullLoopCount == 0 ? " " : "'"),
@@ -347,10 +383,9 @@ Press any key to continue . . . ");
         }
 
         public class Mine {
-            public Mine(int sizeX, int sizeY, Coords coords = null) {
-                SizeX = sizeX;
-                SizeY = sizeY;
-                Coordinates = coords;
+            public Mine(Coords? coords = null) {
+                coords ??= new(0, 0);
+                Coordinates = (Coords)coords;
             }
 
             public bool IsAt(Coords coords) {
@@ -359,14 +394,20 @@ Press any key to continue . . . ");
 
             public Coords Coordinates = new(0, 0);
 
-            public bool Opened = false;
+            public bool Uncovered = false;
 
-            public static Dictionary<GridCellValue, StringColorPair> GridCellValueSymbolColorDict = new(){
-                { GridCellValue.None, new("▀ ", ConsoleColor.DarkGray)},
-                { GridCellValue.Ship, new("▀ ", ConsoleColor.DarkCyan)},
-                { GridCellValue.ShotShip, new("▀ ", ConsoleColor.Green)},
-                { GridCellValue.Cursor, new("▀ ", ConsoleColor.DarkYellow)},
-                { GridCellValue.Missed, new("▀ ", ConsoleColor.Red)}
+            //public static Dictionary<GridCellDisplayType, StringColorPair> GridCellValueSymbolColorDict = new(){
+            //    { GridCellDisplayType.None, new("▀ ", ConsoleColor.DarkGray)},
+            //    { GridCellDisplayType.Ship, new("▀ ", ConsoleColor.DarkCyan)},
+            //    { GridCellDisplayType.ShotShip, new("▀ ", ConsoleColor.Green)},
+            //    { GridCellDisplayType.Cursor, new("▀ ", ConsoleColor.DarkYellow)},
+            //    { GridCellDisplayType.Missed, new("▀ ", ConsoleColor.Red)}
+            //};
+
+            public static Dictionary<GridCellDisplayType, string> GridCellDisplayTypeStringDict = new() {
+                [GridCellDisplayType.Flag] = "⚑ ",
+                [GridCellDisplayType.Mine] = "💣 ",
+                [GridCellDisplayType.Covered] = "█ "
             };
         }
 
