@@ -1,16 +1,13 @@
-﻿using static terminal_minesweeper.Program.Ship;
-using static terminal_minesweeper.Program.ShipsGame;
+﻿using static terminal_minesweeper.Program.Mine;
+using static terminal_minesweeper.Program.MinesweeperGame;
 
 namespace terminal_minesweeper {
     internal class Program {
         const string Name = "terminal-minesweeper";
         const string Version = "v1.0.0";
         static class Consts {
-            public static (int, int) ShipCountRange { get; } = (2, 4);
-            public static (int, int) ShipSizeXRange { get; } = (2, 4);
+            public static (int, int) MineCountRange { get; } = (5, 6);
             public static Coords GridSize { get; } = new(10, 10);
-
-            public const int MaxTries = 3;
         }
         static void Main(string[] args) {
             Console.OutputEncoding = System.Text.Encoding.UTF8;
@@ -20,22 +17,23 @@ namespace terminal_minesweeper {
 
 ### Controls:
  - WASD or ↑←↓→ to move the cursor
- - ENTER or SPACE to ""click""
+ - ENTER or SPACE to reveal what's under the cursor position
+ - E or F to flag/unflag the cell on the cursor position as a mine (only visual, doesn't change any functionality)
 
-### How to play:
- - You have 3 attempts to shoot at least one ship
+### How to win:
+ - Clear all cells that have no mine without triggering any mine
 
 Press any key to continue . . . ");
             Console.ReadKey(true);
 
             Console.CursorVisible = false;
-            ShipsGame game = new();
+            MinesweeperGame game = new();
             while (true) {
                 if (game.Loop()) break;
             }
         }
 
-        public class ShipsGame {
+        public class MinesweeperGame {
             public Random RandomGen = new();
             private Coords _curPos;
             public Coords CurPos {
@@ -49,7 +47,7 @@ Press any key to continue . . . ");
                 }
             }
             public GridCellValue[,] Grid = new GridCellValue[0, 0];
-            public List<Ship> Ships = new();
+            public List<Mine> Mines = new();
             public List<Coords> MissedCoords = new();
             public bool GameEnd = false;
             public int AttemptsLeft;
@@ -58,19 +56,17 @@ Press any key to continue . . . ");
                 Console.Clear();
                 // reset vars
                 Grid = new GridCellValue[Consts.GridSize.Y, Consts.GridSize.X];
-                AttemptsLeft = Consts.MaxTries;
                 CurPos = new(0, 0);
                 GameEnd = false;
-                Ships = new();
+                Mines = new();
                 MissedCoords = new();
 
-                // generate random ships
-                int shipsToAddCount = RandomGen.Next(Consts.ShipCountRange.Item1, Consts.ShipCountRange.Item2 + 1);
-                foreach (int i in Enumerable.Range(0, shipsToAddCount)) {
-                    int shipSizeX = RandomGen.Next(Consts.ShipSizeXRange.Item1, Consts.ShipSizeXRange.Item2 + 1);
-                    Ships.Add(new(shipSizeX, 1));
+                // generate random mines
+                int minesToAddCount = RandomGen.Next(Consts.MineCountRange.Item1, Consts.MineCountRange.Item2 + 1);
+                foreach (int i in Enumerable.Range(0, minesToAddCount)) {
+                    Mines.Add(new Mine());
                 }
-                Ships.ForEach((ship) => { ship.Offset = GetRandomShipCoords(ship, Grid, this); });
+                Mines.ForEach((mine) => { mine.Coordinates = GetRandomMineCoords(mine, Grid, this); });
 
                 bool shotSuccess = false;
                 while (AttemptsLeft > 0) {
@@ -163,7 +159,7 @@ Press any key to continue . . . ");
 
             private bool CheckShot() {
                 bool shotSuccess = false;
-                foreach (var ship in Ships) {
+                foreach (var ship in Mines) {
                     if (ship.IsAt(CurPos)) {
                         shotSuccess = true;
                         ship.Shot = true;
@@ -203,18 +199,18 @@ Press any key to continue . . . ");
             public void UpdateTerminal() {
                 //Console.Clear();
                 Console.SetCursorPosition(0, 0);
-                UpdateGrid(ref Grid, Ships, MissedCoords);
+                UpdateGrid(ref Grid, Mines, MissedCoords);
                 PrintColoredPairs(CreateGridString(Grid, this, CurPos));
             }
 
-            public Ship? ShipAt(Coords coords) {
-                foreach (var ship in Ships) {
+            public Mine? ShipAt(Coords coords) {
+                foreach (var ship in Mines) {
                     if (ship.CoordList.Contains(coords)) return ship;
                 }
                 return null;
             }
 
-            public static void UpdateGrid(ref GridCellValue[,] grid, List<Ship> ships, List<Coords> missedCoords) {
+            public static void UpdateGrid(ref GridCellValue[,] grid, List<Mine> ships, List<Coords> missedCoords) {
                 Array.Clear(grid);
                 foreach (var ship in ships) {
                     List<Coords> shipCoords = ship.CoordList;
@@ -228,9 +224,9 @@ Press any key to continue . . . ");
                 }
             }
 
-            public static Coords GetRandomShipCoords(in Ship ship, in GridCellValue[,] grid, ShipsGame game) {
+            public static Coords GetRandomMineCoords(in Mine ship, in GridCellValue[,] grid, MinesweeperGame game) {
                 List<Coords> allShipCoords = new();
-                foreach (var shipItem in game.Ships) {
+                foreach (var shipItem in game.Mines) {
                     allShipCoords.AddRange(shipItem.CoordList);
                 }
                 int tries = 0;
@@ -240,7 +236,7 @@ Press any key to continue . . . ");
                         game.RandomGen.Next(0, (grid.GetLength(1) - ship.SizeX) + 1),
                         game.RandomGen.Next(0, (grid.GetLength(0) - ship.SizeY) + 1)
                     );
-                    Ship newShip = new(ship.SizeX, ship.SizeY, newShipCoords);
+                    Mine newShip = new(ship.SizeX, ship.SizeY, newShipCoords);
                     List<Coords> allNewShipCoords = newShip.CoordList;
                     // Return the new coords if the new ship's coordinates don't overlap with any other ship's coordinates
                     if (!allShipCoords.Intersect(allNewShipCoords).Any()) return newShipCoords;
@@ -251,11 +247,8 @@ Press any key to continue . . . ");
             }
 
             public enum GridCellValue {
-                None,
-                Ship,
-                ShotShip,
-                Cursor,
-                Missed
+                Empty,
+                Mine
             }
 
             public static void ShowInfoScreen(List<StringColorPair> stringColorPairs) {
@@ -286,7 +279,7 @@ Press any key to continue . . . ");
             Console.WriteLine();
         }
 
-        public static List<StringColorPair> CreateGridString(GridCellValue[,] grid, ShipsGame game, Coords cursor) {
+        public static List<StringColorPair> CreateGridString(GridCellValue[,] grid, MinesweeperGame game, Coords cursor) {
             List<StringColorPair> output = new();
             for (int y = 0; y < grid.GetLength(0); y++) {
                 for (int x = 0; x < grid.GetLength(1); x++) {
@@ -353,35 +346,20 @@ Press any key to continue . . . ");
             return output;
         }
 
-        public class Ship {
-            public Ship(int sizeX, int sizeY, Coords? coords = null) {
-                coords ??= new(0, 0);
+        public class Mine {
+            public Mine(int sizeX, int sizeY, Coords coords = null) {
                 SizeX = sizeX;
                 SizeY = sizeY;
-                Offset = (Coords)coords;
+                Coordinates = coords;
             }
 
             public bool IsAt(Coords coords) {
-                return (CoordList.Contains(coords));
+                return Coordinates == coords;
             }
 
-            public List<Coords> CoordList {
-                get {
-                    List<Coords> shipCoords = new();
-                    for (int y = Offset.Y; y < SizeY + Offset.Y; y++) {
-                        for (int x = Offset.X; x < SizeX + Offset.X; x++) {
-                            shipCoords.Add(new Coords(x, y));
-                        }
-                    }
-                    return shipCoords;
-                }
-            }
+            public Coords Coordinates = new(0, 0);
 
-            public int SizeX;
-            public int SizeY;
-            public Coords Offset = new(0, 0);
-
-            public bool Shot = false;
+            public bool Opened = false;
 
             public static Dictionary<GridCellValue, StringColorPair> GridCellValueSymbolColorDict = new(){
                 { GridCellValue.None, new("▀ ", ConsoleColor.DarkGray)},
