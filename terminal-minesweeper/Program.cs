@@ -72,8 +72,10 @@ Press any key to continue . . . ");
                     Mines.Add(new Mine());
                 }
                 Mines.ForEach((mine) => { mine.Coordinates = GetRandomMineCoords(mine, GameGrid, this); });
+                // TODO: create a function that gives you all surrounding boxes
+                // TODO: calc and assign the number to every cell
 
-                bool shotSuccess = false;
+                //bool shotSuccess = false;
                 while (!GameEnd) {
                     UpdateTerminal();
                     CursorShotInput();
