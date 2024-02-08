@@ -76,9 +76,9 @@ Press any key to continue . . . ");
                 bool shotSuccess = false;
                 while (!GameEnd) {
                     UpdateTerminal();
-                    //CursorShotInput();
+                    CursorShotInput();
                     //shotSuccess = CheckShot();
-                    //UpdateTerminal();
+                    UpdateTerminal();
                     //AttemptsLeft--;
                     //if (!shotSuccess) {
                     //    MissedCoords.Add(CurPos);
@@ -407,7 +407,7 @@ Press any key to continue . . . ");
             public static Dictionary<GridCellDisplayType, string> GridCellDisplayTypeStringDict = new() {
                 [GridCellDisplayType.Flag] = "⚑ ",
                 [GridCellDisplayType.Mine] = "💣 ",
-                [GridCellDisplayType.Covered] = "█ "
+                [GridCellDisplayType.Covered] = "■ "
             };
         }
 
