@@ -1,4 +1,5 @@
-﻿using static terminal_minesweeper.Program.Mine;
+﻿using System.Text.RegularExpressions;
+using static terminal_minesweeper.Program.Mine;
 using static terminal_minesweeper.Program.MinesweeperGame;
 using static terminal_minesweeper.Program.MinesweeperGame.GridCell;
 
@@ -8,7 +9,7 @@ namespace terminal_minesweeper {
         const string Name = "terminal-minesweeper";
         const string Version = "v1.0.0";
         static class Consts {
-            public static (int, int) MineCountRange { get; } = (30, 40);
+            public static (int, int) MineCountRange { get; } = (5, 12);
             public static Coords GridSize { get; } = new(10, 10);
         }
         static void Main(string[] args) {
@@ -77,6 +78,7 @@ Press any key to continue . . . ");
                 // calc and assign the number to every cell
                 for (int y = 0; y < GameGrid.GetLength(0); y++) {
                     for (int x = 0; x < GameGrid.GetLength(1); x++) {
+                        if (MineAt(new(x, y)) != null) continue;
                         var cellsAround = GetCellsAround(new(x, y), GameGrid);
                         int mineCountAround = cellsAround.Where(cell => MineAt(cell) != null).Count();
                         GameGrid[y, x].Data.Number = mineCountAround;
@@ -88,6 +90,7 @@ Press any key to continue . . . ");
                 while (!GameEnd) {
                     UpdateTerminal();
                     CursorShotInput();
+                    UncoveredCellsCoords.Add(CurPos);
                     //shotSuccess = CheckShot();
                     UpdateTerminal();
                     //AttemptsLeft--;
@@ -341,7 +344,7 @@ Press any key to continue . . . ");
                     };
 
                     // show the mines if the game has ended
-                    if ((game.MineAt(new(x, y)) != null) && game.GameEnd) {
+                    if ((game.MineAt(new(x, y)) != null) && (game.GameEnd || game.UncoveredCellsCoords.Contains(new(x, y)))) {
                         gridItem.Type = GridCellDisplayType.Mine;
                     }
 
@@ -394,30 +397,38 @@ Press any key to continue . . . ");
                 alphabetList.RemoveAt(0);
                 alphabetList.Add(temp);
                 loopingAlphabet = string.Join("", alphabetList);
-                if (i == loopCount - 1) output.Insert(i + 1, new("\n"));
+                if (i + 1 == loopCount) {
+                    foreach (int j in Enumerable.Range(0, 2)) {
+                        output.Insert(i + 1 + j, new("\n"));
+                    }
+                }
+
                 if (loopingAlphabet.StartsWith('A')) alphabetFullLoopCount++;
             }
 
             // add the vertical border grid (1, 2, 3, ...)
-            int line = 0;
+            int line = -1;
             int numbersFullLoopCount = -1;
-            for (int i = 0; i < output.Count; i++) {
-                if (output[i].String == "\n") {
-                    if (i < output.Count - 1) {
-                        int displayNum = (line % 9) + 1;
-                        if (displayNum == 1) numbersFullLoopCount++;
-                        char spaceAfterNumber = ' ';
-                        if (numbersFullLoopCount == 1) spaceAfterNumber = '\'';
-                        if (numbersFullLoopCount > 1) spaceAfterNumber = '"';
-                        output.Insert(i + 1,
-                            new(displayNum.ToString() + spaceAfterNumber,
-                            line == cursor.Y ? currentPosColor : ConsoleColor.Gray)
-                        );
-                    }
-                    line++;
+            int realLineIndex = 0;
+            for (int i = 0; i < output.Count - 1; i++) {
+                int newLineCount = Regex.Matches(output[i].String, "\n").Count;
+                realLineIndex += newLineCount;
+                if (realLineIndex <= 1 || newLineCount == 0) { continue; } else {
+                    line += newLineCount;
                 }
+                int displayNum = (line % 9) + 1;
+                if (displayNum == 1) numbersFullLoopCount++;
+                string spaceAfterNumber = " ";
+                if (numbersFullLoopCount == 1) spaceAfterNumber = "'";
+                if (numbersFullLoopCount > 1) spaceAfterNumber = "\"";
+                spaceAfterNumber += "  ";
+                output.Insert(i + 1,
+                    new(displayNum.ToString() + spaceAfterNumber,
+                    line == cursor.Y ? currentPosColor : ConsoleColor.Gray)
+                );
             }
-            output[0] = new("  " + output[0].String, output[0].Color);
+
+            output[0] = new("    " + output[0].String, output[0].Color);
 
             if (output.Last().String == "\n") output.RemoveAt(output.Count - 1);
             return output;
