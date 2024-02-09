@@ -8,7 +8,7 @@ namespace terminal_minesweeper {
         const string Name = "terminal-minesweeper";
         const string Version = "v1.0.0";
         static class Consts {
-            public static (int, int) MineCountRange { get; } = (5, 6);
+            public static (int, int) MineCountRange { get; } = (5, 12);
             public static Coords GridSize { get; } = new(10, 10);
         }
         static void Main(string[] args) {
@@ -50,8 +50,9 @@ Press any key to continue . . . ");
             }
             public Grid GameGrid = new(0, 0);
             public List<Mine> Mines = new();
+            public List<Coords> FlaggedCellsCoords = new();
             public List<Coords> UncoveredCellsCoords = new();
-            public int CellsUncovered = 0;
+            public int ManuallyUncoveredCells = 0;
             public bool GameEnd = false;
             public bool FirstAttempt;
 
@@ -62,8 +63,9 @@ Press any key to continue . . . ");
                 CurPos = new(0, 0);
                 GameEnd = false;
                 Mines = new();
+                FlaggedCellsCoords = new();
                 UncoveredCellsCoords = new();
-                CellsUncovered = 0;
+                ManuallyUncoveredCells = 0;
                 FirstAttempt = true;
 
                 // generate random mines
@@ -72,10 +74,17 @@ Press any key to continue . . . ");
                     Mines.Add(new Mine());
                 }
                 Mines.ForEach((mine) => { mine.Coordinates = GetRandomMineCoords(mine, GameGrid, this); });
-                // TODO: create a function that gives you all surrounding boxes
-                // TODO: calc and assign the number to every cell
+                // calc and assign the number to every cell
+                for (int y = 0; y < GameGrid.GetLength(0); y++) {
+                    for (int x = 0; x < GameGrid.GetLength(1); x++) {
+                        var cellsAround = GetCellsAround(new(x, y), GameGrid);
+                        int mineCountAround = cellsAround.Where(cell => MineAt(cell) != null).Count();
+                        GameGrid[y, x].Data.Number = mineCountAround;
+                    }
 
-                //bool shotSuccess = false;
+                }
+
+                bool shotSuccess = false;
                 while (!GameEnd) {
                     UpdateTerminal();
                     CursorShotInput();
@@ -111,14 +120,14 @@ Press any key to continue . . . ");
                     Console.Write("LOSE");
                 }
                 Console.ForegroundColor = ConsoleColor.White;
-                Console.WriteLine($"! ({CellsUncovered} cells uncovered, {""} flags placed)");
+                Console.WriteLine($"! ({ManuallyUncoveredCells} cells uncovered, {""} flags placed)");
                 return EndScreenInput();
             }
 
             public static bool EndScreenInput() {
                 const int enterPressCountToContinue = 3;
                 static void PrintKeyInfo(int enterPressCount = enterPressCountToContinue) {
-                    PrintColoredPairs(new() {
+                    PrintColoredStrings(new() {
                         new("\nPress "),
                         new("E ", ConsoleColor.Blue),
                         new("or "),
@@ -128,7 +137,7 @@ Press any key to continue . . . ");
                         new("again."),
 
                         new("\nPress "),
-                        new("X ", Color: ConsoleColor.Magenta),
+                        new("X ", ConsoleColor.Magenta),
                         new("to "),
                         new("Exit", ConsoleColor.Magenta),
                         new("."),
@@ -164,15 +173,15 @@ Press any key to continue . . . ");
                 return false;
             }
 
-            private bool CheckShot() {
-                Mine? mine = MineAt(CurPos);
-                if (mine != null) {
-                    mine.Uncovered = true;
-                    return true;
-                }
+            //private bool CheckShot() {
+            //    Mine? mine = MineAt(CurPos);
+            //    if (mine != null) {
+            //        mine.Uncovered = true;
+            //        return true;
+            //    }
 
-                return false;
-            }
+            //    return false;
+            //}
 
             private void CursorShotInput() {
                 bool fired = false;
@@ -204,8 +213,8 @@ Press any key to continue . . . ");
             public void UpdateTerminal() {
                 //Console.Clear();
                 Console.SetCursorPosition(0, 0);
-                UpdateGrid(ref GameGrid, Mines, UncoveredCellsCoords);
-                PrintColoredPairs(CreateGridString(GameGrid, this, CurPos));
+                UpdateGrid(ref GameGrid, Mines, FlaggedCellsCoords, UncoveredCellsCoords);
+                PrintColoredStrings(CreateGridString(GameGrid, this, CurPos));
             }
 
             public Mine? MineAt(Coords coords) {
@@ -215,16 +224,23 @@ Press any key to continue . . . ");
                 return null;
             }
 
-            public static void UpdateGrid(ref Grid grid, List<Mine> mines, List<Coords> flagsCoords) {
-                grid.Reset();
-                foreach (var mine in mines) {
-                    Coords mineCoords = mine.Coordinates;
-                    bool uncovered = mine.Uncovered;
-                    GridCellDisplayType cellDisplayType = uncovered ? GridCellDisplayType.Uncovered : GridCellDisplayType.Covered;
-                    grid[mineCoords.Y, mineCoords.X] = new(cellDisplayType);
-                    foreach (var flagCoords in flagsCoords) {
-                        grid[flagCoords.Y, flagCoords.X] = new(GridCellDisplayType.Flag);
+            public static void UpdateGrid(ref Grid grid, List<Mine> mines, List<Coords> flagsCoords, List<Coords> uncoveredCoords) {
+                //grid.Reset();
+                for (int y = 0; y < grid.GetLength(0); y++) {
+                    for (int x = 0; x < grid.GetLength(1); x++) {
+                        grid[y, x].Type = GridCellDisplayType.Covered;
                     }
+                }
+                //foreach (var mine in mines) {
+                //    Coords mineCoords = mine.Coordinates;
+                //    grid[mineCoords.Y, mineCoords.X].Type = GridCellDisplayType.Covered;
+                //}
+                foreach (var flagCoords in flagsCoords) {
+                    grid[flagCoords.Y, flagCoords.X].Type = GridCellDisplayType.Flag;
+
+                }
+                foreach (var uncoveredCoordsItem in uncoveredCoords) {
+                    grid[uncoveredCoordsItem.Y, uncoveredCoordsItem.X].Type = GridCellDisplayType.Uncovered;
                 }
             }
 
@@ -259,17 +275,15 @@ Press any key to continue . . . ");
                 }
                 public class GridCellDisplayData {
                     public int? Number;
-                    public ConsoleColor Color;
-                    public GridCellDisplayData(int? number = null, ConsoleColor color = ConsoleColor.White) {
+                    public GridCellDisplayData(int? number = null) {
                         Number = number;
-                        Color = color;
                     }
                 }
             }
 
-            public static void ShowInfoScreen(List<StringColorPair> stringColorPairs) {
+            public static void ShowInfoScreen(List<StringColorData> stringColorData) {
                 Console.Clear();
-                PrintColoredPairs(stringColorPairs);
+                PrintColoredStrings(stringColorData);
                 Console.ForegroundColor = ConsoleColor.Gray;
                 Console.Write("Press any key to continue . . . ");
                 Console.ResetColor();
@@ -281,7 +295,7 @@ Press any key to continue . . . ");
             }
 
             public static void ShowInfoScreen(string text) {
-                ShowInfoScreen(new List<StringColorPair>() { new(text) });
+                ShowInfoScreen(new List<StringColorData>() { new(text) });
             }
 
             public class Grid {
@@ -306,35 +320,58 @@ Press any key to continue . . . ");
             }
         }
 
-        public static void PrintColoredPairs(List<StringColorPair> colorStringPairs) {
-            foreach (var colorStringPair in colorStringPairs) {
+        public static void PrintColoredStrings(List<StringColorData> colorStringData) {
+            foreach (var colorStringPair in colorStringData) {
                 Console.ForegroundColor = colorStringPair.Color;
-                Console.Write(colorStringPair.Str);
+                Console.BackgroundColor = colorStringPair.BGColor ?? default;
+                Console.Write(colorStringPair.String);
             }
             //Console.ResetColor();
             Console.ForegroundColor = ConsoleColor.White;
             Console.WriteLine();
         }
 
-        public static List<StringColorPair> CreateGridString(Grid grid, MinesweeperGame game, Coords cursor) {
-            List<StringColorPair> output = new();
+        public static List<StringColorData> CreateGridString(Grid grid, MinesweeperGame game, Coords cursor) {
+            List<StringColorData> output = new();
             for (int y = 0; y < grid.GetLength(0); y++) {
                 for (int x = 0; x < grid.GetLength(1); x++) {
                     GridCell gridItem = grid[y, x];
-                    gridItem.Data.Color = ConsoleColor.White;
+                    StringColorData stringColorData = new("") {
+                        Color = ConsoleColor.White
+                    };
 
                     // show the mines if the game has ended
-                    if ((game.MineAt(new(x, y)) != null) && game.GameEnd) {
+                    //if ((game.MineAt(new(x, y)) != null) && game.GameEnd) {
+                    if (game.MineAt(new(x, y)) != null) {
                         gridItem.Type = GridCellDisplayType.Mine;
                     }
 
                     // draw cursor
                     if (cursor.X == x && cursor.Y == y) {
-                        gridItem.Data.Color = ConsoleColor.DarkYellow;
+                        stringColorData.BGColor = ConsoleColor.DarkCyan;
                     }
 
-                    var itemStr = GridCellDisplayTypeStringDict[gridItem.Type];
-                    output.Add(new(itemStr, gridItem.Data.Color));
+                    // update stringColorData with data from gridItem
+                    GridCellDisplayTypeStringDict.TryGetValue(gridItem.Type, out var itemStr);
+                    stringColorData.String = itemStr ?? "";
+
+                    // draw numbers
+                    if (gridItem.Type == GridCellDisplayType.Covered) {
+                        stringColorData.String = gridItem.Data.Number + " ";
+                        stringColorData.Color = gridItem.Data.Number switch {
+                            1 => ConsoleColor.Blue,
+                            2 => ConsoleColor.Green,
+                            3 => ConsoleColor.Red,
+                            4 => ConsoleColor.DarkBlue,
+                            5 => ConsoleColor.Yellow,
+                            6 => ConsoleColor.Cyan,
+                            7 => ConsoleColor.Magenta,
+                            8 => ConsoleColor.Gray,
+                            _ => stringColorData.Color
+                        };
+                    }
+
+                    output.Add(stringColorData);
                 }
                 output.Add(new("\n", ConsoleColor.White));
             }
@@ -363,7 +400,7 @@ Press any key to continue . . . ");
             int line = 0;
             int numbersFullLoopCount = -1;
             for (int i = 0; i < output.Count; i++) {
-                if (output[i].Str == "\n") {
+                if (output[i].String == "\n") {
                     if (i < output.Count - 1) {
                         int displayNum = (line % 9) + 1;
                         if (displayNum == 1) numbersFullLoopCount++;
@@ -378,9 +415,9 @@ Press any key to continue . . . ");
                     line++;
                 }
             }
-            output[0] = new("  " + output[0].Str, output[0].Color);
+            output[0] = new("  " + output[0].String, output[0].Color);
 
-            if (output.Last().Str == "\n") output.RemoveAt(output.Count - 1);
+            if (output.Last().String == "\n") output.RemoveAt(output.Count - 1);
             return output;
         }
 
@@ -396,27 +433,26 @@ Press any key to continue . . . ");
 
             public Coords Coordinates = new(0, 0);
 
-            public bool Uncovered = false;
-
-            //public static Dictionary<GridCellDisplayType, StringColorPair> GridCellValueSymbolColorDict = new(){
-            //    { GridCellDisplayType.None, new("▀ ", ConsoleColor.DarkGray)},
-            //    { GridCellDisplayType.Ship, new("▀ ", ConsoleColor.DarkCyan)},
-            //    { GridCellDisplayType.ShotShip, new("▀ ", ConsoleColor.Green)},
-            //    { GridCellDisplayType.Cursor, new("▀ ", ConsoleColor.DarkYellow)},
-            //    { GridCellDisplayType.Missed, new("▀ ", ConsoleColor.Red)}
-            //};
-
             public static Dictionary<GridCellDisplayType, string> GridCellDisplayTypeStringDict = new() {
                 [GridCellDisplayType.Flag] = "⚑ ",
-                [GridCellDisplayType.Mine] = "💣 ",
-                [GridCellDisplayType.Covered] = "■ " // □
+                [GridCellDisplayType.Mine] = "💣",
+                [GridCellDisplayType.Covered] = "■ " // "▇ " // "■ " // □
             };
         }
 
         public record struct Coords(int X, int Y);
-        public record struct StringColorPair(string Str, ConsoleColor Color = ConsoleColor.White);
+        public class StringColorData {
+            public string String = "";
+            public ConsoleColor Color;
+            public ConsoleColor? BGColor = null;
+            public StringColorData(string str, ConsoleColor color = ConsoleColor.White, ConsoleColor? bgColor = null) {
+                String = str;
+                Color = color;
+                BGColor = bgColor ?? BGColor;
+            }
+        }
 
-        static void JumpToPrevLineClear(int lineCount = 1) {
+        public static void JumpToPrevLineClear(int lineCount = 1) {
             foreach (int _ in Enumerable.Range(0, lineCount)) {
                 Console.CursorTop--;
                 Console.CursorLeft = 0;
@@ -425,8 +461,36 @@ Press any key to continue . . . ");
             }
         }
 
-        private static void ClearConsoleKeyInput() {
+        public static void ClearConsoleKeyInput() {
             if (Console.KeyAvailable) Console.ReadKey(true);
+        }
+
+        public static List<Coords> GetCellsAround(Coords offset, Grid grid) {
+            List<Coords> result = new();
+
+            // generate square of coords
+            for (int y = -1; y < 2; y++) {
+                for (int x = -1; x < 2; x++) {
+                    Coords toAdd = new(x, y);
+                    result.Add(toAdd);
+                }
+            }
+
+            // remove the center
+            result.Remove(new(0, 0));
+
+            // add offset to the result
+            for (int i = 0; i < result.Count; i++) {
+                Coords item = result[i];
+                result[i] = new(item.X + offset.X, item.Y + offset.Y);
+            }
+
+            // remove coords that are outside of the grid
+            foreach (var item in result.ToList()) {
+                if (item.X >= grid.GetLength(1) || item.Y >= grid.GetLength(0) || item.X < 0 || item.Y < 0)
+                    result.Remove(item);
+            }
+            return result.Distinct().ToList();
         }
     }
 }
