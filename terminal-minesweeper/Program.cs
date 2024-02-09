@@ -8,7 +8,7 @@ namespace terminal_minesweeper {
         const string Name = "terminal-minesweeper";
         const string Version = "v1.0.0";
         static class Consts {
-            public static (int, int) MineCountRange { get; } = (5, 12);
+            public static (int, int) MineCountRange { get; } = (30, 40);
             public static Coords GridSize { get; } = new(10, 10);
         }
         static void Main(string[] args) {
@@ -341,14 +341,13 @@ Press any key to continue . . . ");
                     };
 
                     // show the mines if the game has ended
-                    //if ((game.MineAt(new(x, y)) != null) && game.GameEnd) {
-                    if (game.MineAt(new(x, y)) != null) {
+                    if ((game.MineAt(new(x, y)) != null) && game.GameEnd) {
                         gridItem.Type = GridCellDisplayType.Mine;
                     }
 
                     // draw cursor
                     if (cursor.X == x && cursor.Y == y) {
-                        stringColorData.BGColor = ConsoleColor.DarkCyan;
+                        stringColorData.BGColor = ConsoleColor.DarkGray;
                     }
 
                     // update stringColorData with data from gridItem
@@ -356,17 +355,20 @@ Press any key to continue . . . ");
                     stringColorData.String = itemStr ?? "";
 
                     // draw numbers
-                    if (gridItem.Type == GridCellDisplayType.Covered) {
+                    if (gridItem.Type == GridCellDisplayType.Uncovered) {
+                        int? number = gridItem.Data.Number;
                         stringColorData.String = gridItem.Data.Number + " ";
+                        if (number == 0) stringColorData.String = "  ";
+
                         stringColorData.Color = gridItem.Data.Number switch {
                             1 => ConsoleColor.Blue,
                             2 => ConsoleColor.Green,
                             3 => ConsoleColor.Red,
                             4 => ConsoleColor.DarkBlue,
-                            5 => ConsoleColor.Yellow,
-                            6 => ConsoleColor.Cyan,
+                            5 => ConsoleColor.DarkYellow,
+                            6 => ConsoleColor.DarkCyan,
                             7 => ConsoleColor.Magenta,
-                            8 => ConsoleColor.Gray,
+                            8 => ConsoleColor.Yellow,
                             _ => stringColorData.Color
                         };
                     }
