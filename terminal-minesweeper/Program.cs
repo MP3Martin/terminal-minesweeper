@@ -11,7 +11,7 @@ namespace terminal_minesweeper {
         const string Version = "v1.0.0";
         static class Consts {
             //public static (int, int) MineCountRange { get; } = (5, 12);
-            public static (int, int) MineCountRange { get; } = (2,2);
+            public static (int, int) MineCountRange { get; } = (2, 2);
             public static Coords GridSize { get; } = new(4, 4);
         }
         static void Main(string[] args) {
@@ -519,6 +519,19 @@ Press any key to continue . . . ");
                     result.Remove(item);
             }
             return result.Distinct().ToList();
+        }
+
+        public static int NumInput(string prompt, string? defaultInput, int? defaultOutput) {
+            bool ok = false;
+            int input = 0;
+            while (!ok) {
+                Console.Write(prompt);
+                string readLine = Console.ReadLine();
+                ok = int.TryParse(readLine, out input);
+                if (defaultInput != null && defaultOutput != null && readLine == defaultInput) return (int)defaultOutput;
+                if (!ok) JumpToPrevLineClear();
+            }
+            return input;
         }
     }
 }
