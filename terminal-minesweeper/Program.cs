@@ -10,7 +10,7 @@ namespace terminal_minesweeper {
         const string Version = "v1.0.0";
         static class Consts {
             public static (int, int) MineCountRange { get; } = (5, 12);
-            public static Coords GridSize { get; } = new(10, 10);
+            public static Coords GridSize { get; } = new(30, 30);
         }
         static void Main(string[] args) {
             Console.OutputEncoding = System.Text.Encoding.UTF8;
@@ -24,7 +24,7 @@ namespace terminal_minesweeper {
  - E or F to flag/unflag the cell on the cursor position as a mine (only visual, doesn't change any functionality)
 
 ### How to win:
- - Clear all cells that have no mine without triggering any mine
+ - Uncover all the cells that have no mine without triggering any mine
 
 Press any key to continue . . . ");
             Console.ReadKey(true);
@@ -91,18 +91,8 @@ Press any key to continue . . . ");
                     UpdateTerminal();
                     CursorShotInput();
                     UncoveredCellsCoords.Add(CurPos);
-                    //shotSuccess = CheckShot();
+
                     UpdateTerminal();
-                    //AttemptsLeft--;
-                    //if (!shotSuccess) {
-                    //    MissedCoords.Add(CurPos);
-                    //    if (AttemptsLeft <= 0) break;
-                    //    ShowInfoScreen(new List<StringColorPair> {
-                    //        new("You MISSED! You have ", ConsoleColor.Gray),
-                    //        new($"{AttemptsLeft} {(AttemptsLeft == 1 ? "attempt" : "attempts")} left"),
-                    //        new(".", ConsoleColor.Gray)
-                    //    });
-                    //} else break;
                 }
                 //GameEnd = true;
                 UpdateTerminal();
@@ -204,7 +194,19 @@ Press any key to continue . . . ");
                         case ConsoleKey.D or ConsoleKey.RightArrow:
                             CurPos = new(CurPos.X + 1, CurPos.Y);
                             break;
+                        case ConsoleKey.E or ConsoleKey.F:
+                            // do nothing if the cell is uncovered
+                            if (UncoveredCellsCoords.Contains(CurPos)) break;
+
+                            // toggle flagged
+                            if (FlaggedCellsCoords.Contains(CurPos)) {
+                                FlaggedCellsCoords.Remove(CurPos);
+                            } else {
+                                FlaggedCellsCoords.Add(CurPos);
+                            }
+                            break;
                         case ConsoleKey.Enter or ConsoleKey.Spacebar:
+                            if (FlaggedCellsCoords.Contains(CurPos)) break;
                             fired = true;
                             break;
                         default:
@@ -228,16 +230,11 @@ Press any key to continue . . . ");
             }
 
             public static void UpdateGrid(ref Grid grid, List<Mine> mines, List<Coords> flagsCoords, List<Coords> uncoveredCoords) {
-                //grid.Reset();
                 for (int y = 0; y < grid.GetLength(0); y++) {
                     for (int x = 0; x < grid.GetLength(1); x++) {
                         grid[y, x].Type = GridCellDisplayType.Covered;
                     }
                 }
-                //foreach (var mine in mines) {
-                //    Coords mineCoords = mine.Coordinates;
-                //    grid[mineCoords.Y, mineCoords.X].Type = GridCellDisplayType.Covered;
-                //}
                 foreach (var flagCoords in flagsCoords) {
                     grid[flagCoords.Y, flagCoords.X].Type = GridCellDisplayType.Flag;
 
@@ -319,6 +316,10 @@ Press any key to continue . . . ");
                     get => _grid[indexY, indexX];
                     set => _grid[indexY, indexX] = value;
                 }
+                public GridCell this[Coords coords] {
+                    get => this[coords.Y, coords.X];
+                    set => this[coords.Y, coords.X] = value;
+                }
                 public int GetLength(int dimension) => _grid.GetLength(dimension);
             }
         }
@@ -376,6 +377,9 @@ Press any key to continue . . . ");
                         };
                     }
 
+                    // draw flag
+                    if (gridItem.Type == GridCellDisplayType.Flag) stringColorData.Color = ConsoleColor.DarkRed;
+
                     output.Add(stringColorData);
                 }
                 output.Add(new("\n", ConsoleColor.White));
@@ -428,7 +432,7 @@ Press any key to continue . . . ");
                 );
             }
 
-            output[0] = new("    " + output[0].String, output[0].Color);
+            output.Insert(0, new("    "));
 
             if (output.Last().String == "\n") output.RemoveAt(output.Count - 1);
             return output;
