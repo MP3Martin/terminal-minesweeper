@@ -10,8 +10,9 @@ namespace terminal_minesweeper {
         const string Name = "terminal-minesweeper";
         const string Version = "v1.0.0";
         static class Consts {
-            public static (int, int) MineCountRange { get; } = (5, 12);
-            public static Coords GridSize { get; } = new(10, 10);
+            //public static (int, int) MineCountRange { get; } = (5, 12);
+            public static (int, int) MineCountRange { get; } = (2,2);
+            public static Coords GridSize { get; } = new(4, 4);
         }
         static void Main(string[] args) {
             Console.OutputEncoding = System.Text.Encoding.UTF8;
@@ -35,6 +36,7 @@ Press any key to continue . . . ");
             while (true) {
                 if (game.Loop()) break;
             }
+            Console.CursorVisible = true;
         }
 
         public class MinesweeperGame {
@@ -76,7 +78,9 @@ Press any key to continue . . . ");
                     Mines.Add(new Mine());
                 }
                 Mines.ForEach((mine) => { mine.Coordinates = GetRandomMineCoords(mine, GameGrid, this); });
-                // calc and assign the number to every cell
+                Mines.RemoveAll(mine => mine.Coordinates == new Coords(-1, -1));
+
+                // calculate neighbour mine count for every cell
                 for (int y = 0; y < GameGrid.GetLength(0); y++) {
                     for (int x = 0; x < GameGrid.GetLength(1); x++) {
                         if (MineAt(new(x, y)) != null) continue;
@@ -87,17 +91,22 @@ Press any key to continue . . . ");
 
                 }
 
-                bool shotSuccess = false;
+                bool gameWon = false;
                 while (!GameEnd) {
                     UpdateTerminal();
                     CursorShotInput();
                     UncoveredCellsCoords.Add(CurPos);
-
+                    if (MineAt(CurPos) != null) {
+                        GameEnd = true;
+                        gameWon = false;
+                    }
+                    if (UncoveredCellsCoords.Count + Mines.Count == GameGrid.GetLength(0) * GameGrid.GetLength(1)) {
+                        GameEnd = true;
+                        gameWon = true;
+                        if (UncoveredCellsCoords.Any(coords => MineAt(coords) != null)) gameWon = false;
+                    }
                     UpdateTerminal();
                 }
-                //GameEnd = true;
-                UpdateTerminal();
-
                 Thread.Sleep(300);
                 ClearConsoleKeyInput();
                 // hide the cursor
@@ -106,7 +115,7 @@ Press any key to continue . . . ");
 
                 Console.ForegroundColor = ConsoleColor.White;
                 Console.Write("\nYou ");
-                if (shotSuccess) {
+                if (gameWon) {
                     Console.ForegroundColor = ConsoleColor.Green;
                     Console.Write("WIN");
                 } else {
@@ -114,7 +123,7 @@ Press any key to continue . . . ");
                     Console.Write("LOSE");
                 }
                 Console.ForegroundColor = ConsoleColor.White;
-                Console.WriteLine($"! ({ManuallyUncoveredCells} cells uncovered, {""} flags placed)");
+                Console.WriteLine($"! ({ManuallyUncoveredCells} cells uncovered, {FlaggedCellsCoords.Count} flags placed)");
                 return EndScreenInput();
             }
 
@@ -123,9 +132,9 @@ Press any key to continue . . . ");
                 static void PrintKeyInfo(int enterPressCount = enterPressCountToContinue) {
                     PrintColoredStrings(new() {
                         new("\nPress "),
-                        new("E ", ConsoleColor.Blue),
-                        new("or "),
-                        new($"{(enterPressCount == 0 ? "✓" : enterPressCount)}×ENTER ", ConsoleColor.Blue),
+                        new($"{(enterPressCount == 0 ? "✓" : enterPressCount)}×ENTER", ConsoleColor.Blue),
+                        new("/"),
+                        new("SPACE ", ConsoleColor.Blue),
                         new("to "),
                         new("Play ", ConsoleColor.Blue),
                         new("again."),
@@ -134,37 +143,30 @@ Press any key to continue . . . ");
                         new("X ", ConsoleColor.Magenta),
                         new("to "),
                         new("Exit", ConsoleColor.Magenta),
-                        new("."),
+                        new(".")
                     });
                 }
                 int enterPressCount = 0;
                 PrintKeyInfo();
-                bool ok = false;
-                while (!ok) {
+                while (true) {
                     ConsoleKey key = Console.ReadKey(true).Key;
-                    ok = true;
                     switch (key) {
                         case ConsoleKey.X:
                             return true;
-                        case ConsoleKey.E:
-                            break;
                         case ConsoleKey.Enter or ConsoleKey.Spacebar:
                             enterPressCount++;
-                            ok = false;
                             JumpToPrevLineClear(3);
                             PrintKeyInfo(enterPressCountToContinue - enterPressCount);
                             if (enterPressCount >= enterPressCountToContinue) {
-                                ok = true;
                                 Thread.Sleep(350);
                                 ClearConsoleKeyInput();
+                                return false;
                             }
                             break;
                         default:
-                            ok = false;
                             break;
                     }
                 }
-                return false;
             }
 
             private void CursorShotInput() {
@@ -199,6 +201,7 @@ Press any key to continue . . . ");
                         case ConsoleKey.Enter or ConsoleKey.Spacebar:
                             if (FlaggedCellsCoords.Contains(CurPos)) break;
                             uncovered = true;
+                            ManuallyUncoveredCells++;
                             break;
                         default:
                             break;
@@ -247,7 +250,7 @@ Press any key to continue . . . ");
                     if (!allMineCoords.Contains(newMineCoords)) return newMineCoords;
                     tries++;
                 }
-                return new(0, 0);
+                return new(-1, -1);
             }
 
             public class GridCell {
