@@ -3,6 +3,7 @@ using static terminal_minesweeper.Program.Mine;
 using static terminal_minesweeper.Program.MinesweeperGame;
 using static terminal_minesweeper.Program.MinesweeperGame.GridCell;
 
+// TODO: Game size selection
 // TODO: Try to set everything to private and then only set some stuff to public
 namespace terminal_minesweeper {
     internal class Program {
@@ -10,7 +11,7 @@ namespace terminal_minesweeper {
         const string Version = "v1.0.0";
         static class Consts {
             public static (int, int) MineCountRange { get; } = (5, 12);
-            public static Coords GridSize { get; } = new(30, 30);
+            public static Coords GridSize { get; } = new(10, 10);
         }
         static void Main(string[] args) {
             Console.OutputEncoding = System.Text.Encoding.UTF8;
@@ -166,19 +167,9 @@ Press any key to continue . . . ");
                 return false;
             }
 
-            //private bool CheckShot() {
-            //    Mine? mine = MineAt(CurPos);
-            //    if (mine != null) {
-            //        mine.Uncovered = true;
-            //        return true;
-            //    }
-
-            //    return false;
-            //}
-
             private void CursorShotInput() {
-                bool fired = false;
-                while (!fired) {
+                bool uncovered = false;
+                while (!uncovered) {
                     UpdateTerminal();
                     ConsoleKey key = Console.ReadKey(true).Key;
                     switch (key) {
@@ -207,7 +198,7 @@ Press any key to continue . . . ");
                             break;
                         case ConsoleKey.Enter or ConsoleKey.Spacebar:
                             if (FlaggedCellsCoords.Contains(CurPos)) break;
-                            fired = true;
+                            uncovered = true;
                             break;
                         default:
                             break;
@@ -216,7 +207,7 @@ Press any key to continue . . . ");
             }
 
             public void UpdateTerminal() {
-                //Console.Clear();
+                if (ConsoleResize.CheckResized()) Console.Clear();
                 Console.SetCursorPosition(0, 0);
                 UpdateGrid(ref GameGrid, Mines, FlaggedCellsCoords, UncoveredCellsCoords);
                 PrintColoredStrings(CreateGridString(GameGrid, this, CurPos));
@@ -324,6 +315,22 @@ Press any key to continue . . . ");
             }
         }
 
+        public static class ConsoleResize {
+            private static Coords? previousSize = null;
+            private static Coords? _currentSize = null;
+            private static Coords? currentSize {
+                get => _currentSize;
+                set {
+                    previousSize = _currentSize;
+                    _currentSize = value;
+                }
+            }
+            public static bool CheckResized() {
+                currentSize = new(Console.BufferWidth, Console.BufferHeight);
+                return currentSize != previousSize;
+            }
+        }
+
         public static void PrintColoredStrings(List<StringColorData> colorStringData) {
             foreach (var colorStringPair in colorStringData) {
                 Console.ForegroundColor = colorStringPair.Color;
@@ -425,7 +432,8 @@ Press any key to continue . . . ");
                 string spaceAfterNumber = " ";
                 if (numbersFullLoopCount == 1) spaceAfterNumber = "'";
                 if (numbersFullLoopCount > 1) spaceAfterNumber = "\"";
-                spaceAfterNumber += "  ";
+                if (numbersFullLoopCount > 2) spaceAfterNumber = "\"'";
+                spaceAfterNumber += new string(' ', 3 - spaceAfterNumber.Length);
                 output.Insert(i + 1,
                     new(displayNum.ToString() + spaceAfterNumber,
                     line == cursor.Y ? currentPosColor : ConsoleColor.Gray)
