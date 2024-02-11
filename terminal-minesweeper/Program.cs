@@ -2,7 +2,6 @@
 using static terminal_minesweeper.Program.Mine;
 using static terminal_minesweeper.Program.MinesweeperGame.GridCell;
 
-// TODO: Try to set everything to private and then only set some stuff to public
 namespace terminal_minesweeper {
     internal class Program {
         const string Name = "terminal-minesweeper";
@@ -30,6 +29,11 @@ namespace terminal_minesweeper {
 
             Console.CursorVisible = false;
             MinesweeperGame game = new(gameSize);
+
+            Console.CancelKeyPress += (_, _) => {
+                Console.CursorVisible = true;
+            };
+
             while (true) {
                 if (game.Loop()) break;
             }
