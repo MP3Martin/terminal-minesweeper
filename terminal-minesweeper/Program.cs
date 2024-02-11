@@ -4,6 +4,9 @@ using static terminal_minesweeper.Program.MinesweeperGame.GridCell;
 
 namespace terminal_minesweeper {
     internal class Program {
+        static class Consts {
+            public const string CheatCode = "cheat";
+        }
         const string Name = "terminal-minesweeper";
         const string Version = "v1.0.0";
         static void Main(string[] args) {
@@ -60,6 +63,9 @@ namespace terminal_minesweeper {
             private HashSet<Coords> UncoveredCellsCoords = new();
             private int ManuallyUncoveredCells = 0;
             private bool GameEnd = false;
+            private bool CheatMode = false;
+            private string CheatModeTyping = "";
+            private bool Cheated = false;
 
             public MinesweeperGame(Coords size) {
                 GridSize = size;
@@ -76,6 +82,9 @@ namespace terminal_minesweeper {
                 UncoveredCellsCoords = new();
                 ManuallyUncoveredCells = 0;
                 GameEnd = false;
+                CheatMode = false;
+                CheatModeTyping = "";
+                Cheated = false;
 
                 // generate random mines
                 int minesToAddCount = Math.Max(0, (int)(GridSize.X * GridSize.Y * 0.15));
@@ -124,9 +133,14 @@ namespace terminal_minesweeper {
                 Console.ForegroundColor = ConsoleColor.White;
                 Console.WriteLine($"! ({ManuallyUncoveredCells} cells uncovered, " +
                     $"{FlaggedCellsCoords.Count} flags placed, " +
-                    $"{Mines.Where(mine => FlaggedCellsCoords.Contains(mine.Coordinates)).Count()} " +
+                    $"{Mines.Count(mine => FlaggedCellsCoords.Contains(mine.Coordinates))} " +
                     $"out of {Mines.Count} mines were flagged)"
                 );
+                if (Cheated) {
+                    PrintColoredStrings(new(){
+                        new("⚠️ Warning: Cheat mode was activated at least once while playing this round! ⚠️", ConsoleColor.DarkYellow)
+                    });
+                }
                 return EndScreenInput();
             }
 
@@ -188,7 +202,25 @@ namespace terminal_minesweeper {
                 bool uncovered = false;
                 while (!uncovered) {
                     UpdateTerminal();
-                    ConsoleKey key = Console.ReadKey(true).Key;
+                    ConsoleKeyInfo input = Console.ReadKey(true);
+
+                    // cheat mode
+                    char inputChar = input.KeyChar;
+                    CheatMode = false;
+                    CheatModeTyping += char.ToLower(inputChar);
+                    if (Consts.CheatCode.StartsWith(CheatModeTyping, StringComparison.Ordinal)) {
+                        if (CheatModeTyping == Consts.CheatCode) {
+                            CheatMode = true;
+                            Cheated = true;
+                            CheatModeTyping = "";
+                            UpdateTerminal();
+                        }
+                        continue; // ignore the key press if it was a valid next cheat char
+                    } else {
+                        CheatModeTyping = "";
+                    }
+
+                    ConsoleKey key = input.Key;
                     switch (key) {
                         case ConsoleKey.W or ConsoleKey.UpArrow:
                             CurPos = new(CurPos.X, CurPos.Y - 1);
@@ -231,8 +263,8 @@ namespace terminal_minesweeper {
                             // auto-reveal
                             AutoReveal(CurPos);
 
-                            uncovered = true;
                             ManuallyUncoveredCells++;
+                            uncovered = true;
                             break;
                         default:
                             break;
@@ -248,6 +280,8 @@ namespace terminal_minesweeper {
                     visitedCells.Add(currentCoords);
 
                     UncoveredCellsCoords.Add(currentCoords);
+
+                    // do not recursively reveal neighbours if the current cell has at least one neighbouring mine
                     if (GameGrid[currentCoords].Data.Number > 0) return;
                     HashSet<Coords> neighbours = GetCellsAround(currentCoords);
                     foreach (var neighbour in neighbours) {
@@ -266,10 +300,7 @@ namespace terminal_minesweeper {
             }
 
             public Mine? MineAt(Coords coords) {
-                foreach (var mine in Mines) {
-                    if (mine.Coordinates == coords) return mine;
-                }
-                return null;
+                return Mines.FirstOrDefault(mine => mine.Coordinates == coords);
             }
 
             private static void UpdateGrid(ref Grid grid, HashSet<Coords> flagsCoords, HashSet<Coords> uncoveredCoords) {
@@ -353,8 +384,8 @@ namespace terminal_minesweeper {
                 HashSet<Coords> result = new();
 
                 // generate square of coords
-                for (int y = -1; y < 2; y++) {
-                    for (int x = -1; x < 2; x++) {
+                for (int y = -1; y <= 1; y++) {
+                    for (int x = -1; x <= 1; x++) {
                         Coords toAdd = new(x, y);
                         result.Add(toAdd);
                     }
@@ -370,9 +401,8 @@ namespace terminal_minesweeper {
                 }).ToHashSet();
 
                 // remove coords that are outside of the grid
-                foreach (var item in result) {
-                    if (item.X >= GridSize.X || item.Y >= GridSize.Y || item.X < 0 || item.Y < 0) result.Remove(item);
-                }
+                result.RemoveWhere(item => item.X >= GridSize.X || item.Y >= GridSize.Y || item.X < 0 || item.Y < 0);
+
                 return result;
             }
 
@@ -386,7 +416,7 @@ namespace terminal_minesweeper {
                         };
 
                         // show the mines if the game has ended
-                        if ((MineAt(new(x, y)) != null) && (GameEnd || UncoveredCellsCoords.Contains(new(x, y)))) {
+                        if ((MineAt(new(x, y)) != null) && (GameEnd || UncoveredCellsCoords.Contains(new(x, y)) || CheatMode)) {
                             gridItem.Type = GridCellDisplayType.Mine;
                         }
 
