@@ -1,19 +1,12 @@
 ﻿using System.Text.RegularExpressions;
 using static terminal_minesweeper.Program.Mine;
-using static terminal_minesweeper.Program.MinesweeperGame;
 using static terminal_minesweeper.Program.MinesweeperGame.GridCell;
 
-// TODO: Game size selection
 // TODO: Try to set everything to private and then only set some stuff to public
 namespace terminal_minesweeper {
     internal class Program {
         const string Name = "terminal-minesweeper";
         const string Version = "v1.0.0";
-        static class Consts {
-            //public static (int, int) MineCountRange { get; } = (5, 12);
-            public static (int, int) MineCountRange { get; } = (2, 2);
-            public static Coords GridSize { get; } = new(4, 4);
-        }
         static void Main(string[] args) {
             Console.OutputEncoding = System.Text.Encoding.UTF8;
             Console.Title = $"{Name} @{Version}";
@@ -28,11 +21,15 @@ namespace terminal_minesweeper {
 ### How to win:
  - Uncover all the cells that have no mine without triggering any mine
 
-Press any key to continue . . . ");
-            Console.ReadKey(true);
+");
+
+            Coords gameSize = new() {
+                X = NumInput("Enter game width (press enter for default): ", "", 10, 3),
+                Y = NumInput("Enter game height (press enter for default): ", "", 10, 3)
+            };
 
             Console.CursorVisible = false;
-            MinesweeperGame game = new();
+            MinesweeperGame game = new(gameSize);
             while (true) {
                 if (game.Loop()) break;
             }
@@ -40,9 +37,9 @@ Press any key to continue . . . ");
         }
 
         public class MinesweeperGame {
-            public Random RandomGen = new();
+            private readonly Random RandomGen = new();
             private Coords _curPos;
-            public Coords CurPos {
+            private Coords CurPos {
                 get => _curPos;
                 set {
                     if (value.Y >= GameGrid.GetLength(0)) value.Y = 0;
@@ -52,44 +49,41 @@ Press any key to continue . . . ");
                     _curPos = value;
                 }
             }
-            public Grid GameGrid = new(0, 0);
-            public List<Mine> Mines = new();
-            public List<Coords> FlaggedCellsCoords = new();
-            public List<Coords> UncoveredCellsCoords = new();
-            public int ManuallyUncoveredCells = 0;
-            public bool GameEnd = false;
-            public bool FirstAttempt;
+            private Grid GameGrid = new(0, 0);
+            private Coords GridSize = new(0, 0);
+            private List<Mine> Mines = new();
+            private List<Coords> FlaggedCellsCoords = new();
+            private List<Coords> UncoveredCellsCoords = new();
+            private int ManuallyUncoveredCells = 0;
+            private bool GameEnd = false;
+
+            public MinesweeperGame(Coords size) {
+                GridSize = size;
+            }
 
             public bool Loop() {
                 Console.Clear();
                 // reset vars
-                GameGrid = new(Consts.GridSize.Y, Consts.GridSize.X);
                 CurPos = new(0, 0);
-                GameEnd = false;
+                GameGrid = new(GridSize.Y, GridSize.X);
                 Mines = new();
                 FlaggedCellsCoords = new();
                 UncoveredCellsCoords = new();
                 ManuallyUncoveredCells = 0;
-                FirstAttempt = true;
+                GameEnd = false;
 
                 // generate random mines
-                int minesToAddCount = RandomGen.Next(Consts.MineCountRange.Item1, Consts.MineCountRange.Item2 + 1);
-                foreach (int i in Enumerable.Range(0, minesToAddCount)) {
-                    Mines.Add(new Mine());
-                }
-                Mines.ForEach((mine) => { mine.Coordinates = GetRandomMineCoords(mine, GameGrid, this); });
-                Mines.RemoveAll(mine => mine.Coordinates == new Coords(-1, -1));
+                int minesToAddCount = Math.Max(0, (int)(GridSize.X * GridSize.Y * 0.15));
+                do {
+                    foreach (int i in Enumerable.Range(0, minesToAddCount)) {
+                        Mines.Add(new Mine());
+                    }
+                    Mines.ForEach((mine) => { mine.Coordinates = GetRandomMineCoords(); });
+                    Mines.RemoveAll(mine => mine.Coordinates == new Coords(-1, -1));
+                } while (Mines.Count < 1);
 
                 // calculate neighbour mine count for every cell
-                for (int y = 0; y < GameGrid.GetLength(0); y++) {
-                    for (int x = 0; x < GameGrid.GetLength(1); x++) {
-                        if (MineAt(new(x, y)) != null) continue;
-                        var cellsAround = GetCellsAround(new(x, y), GameGrid);
-                        int mineCountAround = cellsAround.Where(cell => MineAt(cell) != null).Count();
-                        GameGrid[y, x].Data.Number = mineCountAround;
-                    }
-
-                }
+                RecalculateCellNumbers();
 
                 bool gameWon = false;
                 while (!GameEnd) {
@@ -123,11 +117,27 @@ Press any key to continue . . . ");
                     Console.Write("LOSE");
                 }
                 Console.ForegroundColor = ConsoleColor.White;
-                Console.WriteLine($"! ({ManuallyUncoveredCells} cells uncovered, {FlaggedCellsCoords.Count} flags placed)");
+                Console.WriteLine($"! ({ManuallyUncoveredCells} cells uncovered, " +
+                    $"{FlaggedCellsCoords.Count} flags placed, " +
+                    $"{Mines.Where(mine => FlaggedCellsCoords.Contains(mine.Coordinates)).Count()} " +
+                    $"out of {Mines.Count} mines were flagged)"
+                );
                 return EndScreenInput();
             }
 
-            public static bool EndScreenInput() {
+            private void RecalculateCellNumbers() {
+                for (int y = 0; y < GameGrid.GetLength(0); y++) {
+                    for (int x = 0; x < GameGrid.GetLength(1); x++) {
+                        if (MineAt(new(x, y)) != null) continue;
+                        var cellsAround = GetCellsAround(new(x, y));
+                        int mineCountAround = cellsAround.Where(cell => MineAt(cell) != null).Count();
+                        GameGrid[y, x].Data.Number = mineCountAround;
+                    }
+
+                }
+            }
+
+            private static bool EndScreenInput() {
                 const int enterPressCountToContinue = 3;
                 static void PrintKeyInfo(int enterPressCount = enterPressCountToContinue) {
                     PrintColoredStrings(new() {
@@ -199,7 +209,25 @@ Press any key to continue . . . ");
                             }
                             break;
                         case ConsoleKey.Enter or ConsoleKey.Spacebar:
-                            if (FlaggedCellsCoords.Contains(CurPos)) break;
+                            // do nothing if the cell is already uncovered
+                            if (FlaggedCellsCoords.Contains(CurPos) || UncoveredCellsCoords.Contains(CurPos)) break;
+
+                            // move/remove the mine if it is the first thing the user reveals
+                            Mine? mineAtCurPos = MineAt(CurPos);
+                            if (UncoveredCellsCoords.Count == 0 && mineAtCurPos != null) {
+                                if (Mines.Count > 1) {
+                                    Mines.Remove(mineAtCurPos);
+                                } else {
+                                    mineAtCurPos.Coordinates = GetRandomMineCoords();
+                                }
+                                RecalculateCellNumbers();
+                            }
+
+                            // auto-reveal
+                            //if (UncoveredCellsCoords.Count == 0) {
+                            AutoReveal(CurPos);
+                            //}
+
                             uncovered = true;
                             ManuallyUncoveredCells++;
                             break;
@@ -209,11 +237,29 @@ Press any key to continue . . . ");
                 }
             }
 
-            public void UpdateTerminal() {
+            private void AutoReveal(Coords coords) {
+                HashSet<Coords> visitedCells = new();
+
+                void RecursiveAutoReveal(Coords coords) {
+                    if (visitedCells.Contains(coords)) return; // skip if already visited
+                    visitedCells.Add(coords);
+
+                    if (!UncoveredCellsCoords.Contains(coords)) UncoveredCellsCoords.Add(coords);
+                    if (GameGrid[coords].Data.Number > 0) return;
+                    List<Coords> neighbours = GetCellsAround(coords);
+                    foreach (var neighbour in neighbours) {
+                        RecursiveAutoReveal(neighbour);
+                    }
+                }
+
+                RecursiveAutoReveal(coords);
+            }
+
+            private void UpdateTerminal() {
                 if (ConsoleResize.CheckResized()) Console.Clear();
                 Console.SetCursorPosition(0, 0);
-                UpdateGrid(ref GameGrid, Mines, FlaggedCellsCoords, UncoveredCellsCoords);
-                PrintColoredStrings(CreateGridString(GameGrid, this, CurPos));
+                UpdateGrid(ref GameGrid, FlaggedCellsCoords, UncoveredCellsCoords);
+                PrintColoredStrings(CreateGridString());
             }
 
             public Mine? MineAt(Coords coords) {
@@ -223,7 +269,7 @@ Press any key to continue . . . ");
                 return null;
             }
 
-            public static void UpdateGrid(ref Grid grid, List<Mine> mines, List<Coords> flagsCoords, List<Coords> uncoveredCoords) {
+            private static void UpdateGrid(ref Grid grid, List<Coords> flagsCoords, List<Coords> uncoveredCoords) {
                 for (int y = 0; y < grid.GetLength(0); y++) {
                     for (int x = 0; x < grid.GetLength(1); x++) {
                         grid[y, x].Type = GridCellDisplayType.Covered;
@@ -238,14 +284,14 @@ Press any key to continue . . . ");
                 }
             }
 
-            public static Coords GetRandomMineCoords(in Mine mine, in Grid grid, MinesweeperGame game) {
-                List<Coords> allMineCoords = game.Mines.Select(mineItem => mineItem.Coordinates).ToList();
+            private Coords GetRandomMineCoords() {
+                List<Coords> allMineCoords = Mines.Select(mineItem => mineItem.Coordinates).ToList();
                 int tries = 0;
                 Coords newMineCoords;
-                while (tries < ((game.GameGrid.GetLength(0) + game.GameGrid.GetLength(1)) * 3)) {
+                while (tries < ((GameGrid.GetLength(0) + GameGrid.GetLength(1)) * 3)) {
                     newMineCoords = new(
-                        game.RandomGen.Next(0, grid.GetLength(1)),
-                        game.RandomGen.Next(0, grid.GetLength(0))
+                        RandomGen.Next(0, GameGrid.GetLength(1)),
+                        RandomGen.Next(0, GameGrid.GetLength(0))
                     );
                     if (!allMineCoords.Contains(newMineCoords)) return newMineCoords;
                     tries++;
@@ -275,7 +321,7 @@ Press any key to continue . . . ");
                 }
             }
 
-            public static void ShowInfoScreen(List<StringColorData> stringColorData) {
+            private static void ShowInfoScreen(List<StringColorData> stringColorData) {
                 Console.Clear();
                 PrintColoredStrings(stringColorData);
                 Console.ForegroundColor = ConsoleColor.Gray;
@@ -288,7 +334,7 @@ Press any key to continue . . . ");
                 Console.Clear();
             }
 
-            public static void ShowInfoScreen(string text) {
+            private static void ShowInfoScreen(string text) {
                 ShowInfoScreen(new List<StringColorData>() { new(text) });
             }
 
@@ -316,9 +362,141 @@ Press any key to continue . . . ");
                 }
                 public int GetLength(int dimension) => _grid.GetLength(dimension);
             }
+
+            private List<Coords> GetCellsAround(Coords offset) {
+                List<Coords> result = new();
+
+                // generate square of coords
+                for (int y = -1; y < 2; y++) {
+                    for (int x = -1; x < 2; x++) {
+                        Coords toAdd = new(x, y);
+                        result.Add(toAdd);
+                    }
+                }
+
+                // remove the center
+                result.Remove(new(0, 0));
+
+                // add offset to the result
+                for (int i = 0; i < result.Count; i++) {
+                    Coords item = result[i];
+                    result[i] = new(item.X + offset.X, item.Y + offset.Y);
+                }
+
+                // remove coords that are outside of the grid
+                foreach (var item in result.ToList()) {
+                    if (item.X >= GridSize.X || item.Y >= GridSize.Y || item.X < 0 || item.Y < 0)
+                        result.Remove(item);
+                }
+                return result.Distinct().ToList();
+            }
+
+            private List<StringColorData> CreateGridString() {
+                List<StringColorData> output = new();
+                for (int y = 0; y < GameGrid.GetLength(0); y++) {
+                    for (int x = 0; x < GameGrid.GetLength(1); x++) {
+                        GridCell gridItem = GameGrid[y, x];
+                        StringColorData stringColorData = new("") {
+                            Color = ConsoleColor.White
+                        };
+
+                        // show the mines if the game has ended
+                        if ((MineAt(new(x, y)) != null) && (GameEnd || UncoveredCellsCoords.Contains(new(x, y)))) {
+                            gridItem.Type = GridCellDisplayType.Mine;
+                        }
+
+                        // draw cursor
+                        if (CurPos.X == x && CurPos.Y == y) {
+                            stringColorData.BGColor = ConsoleColor.DarkGray;
+                        }
+
+                        // update stringColorData with data from gridItem
+                        GridCellDisplayTypeStringDict.TryGetValue(gridItem.Type, out var itemStr);
+                        stringColorData.String = itemStr ?? "";
+
+                        // draw numbers
+                        if (gridItem.Type == GridCellDisplayType.Uncovered) {
+                            int? number = gridItem.Data.Number;
+                            stringColorData.String = gridItem.Data.Number + " ";
+                            if (number == 0) stringColorData.String = "  ";
+
+                            stringColorData.Color = gridItem.Data.Number switch {
+                                1 => ConsoleColor.Blue,
+                                2 => ConsoleColor.Green,
+                                3 => ConsoleColor.Red,
+                                4 => ConsoleColor.DarkBlue,
+                                5 => ConsoleColor.DarkYellow,
+                                6 => ConsoleColor.DarkCyan,
+                                7 => ConsoleColor.Magenta,
+                                8 => ConsoleColor.Yellow,
+                                _ => stringColorData.Color
+                            };
+                        }
+
+                        // draw flag
+                        if (gridItem.Type == GridCellDisplayType.Flag) stringColorData.Color = ConsoleColor.DarkRed;
+
+                        output.Add(stringColorData);
+                    }
+                    output.Add(new("\n", ConsoleColor.White));
+                }
+
+                const ConsoleColor currentPosColor = ConsoleColor.DarkCyan;
+
+                // add the horizontal border grid (A, B, C, ...)
+                string loopingAlphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+                int alphabetFullLoopCount = 0;
+                int loopCount = GameGrid.GetLength(1);
+                foreach (int i in Enumerable.Range(0, loopCount)) {
+                    output.Insert(i,
+                        new(loopingAlphabet[0].ToString() + (alphabetFullLoopCount == 0 ? " " : "'"),
+                        i == CurPos.X ? currentPosColor : ConsoleColor.Gray)
+                    );
+                    List<char> alphabetList = loopingAlphabet.ToList();
+                    char temp = alphabetList[0];
+                    alphabetList.RemoveAt(0);
+                    alphabetList.Add(temp);
+                    loopingAlphabet = string.Join("", alphabetList);
+                    if (i + 1 == loopCount) {
+                        foreach (int j in Enumerable.Range(0, 2)) {
+                            output.Insert(i + 1 + j, new("\n"));
+                        }
+                    }
+
+                    if (loopingAlphabet.StartsWith('A')) alphabetFullLoopCount++;
+                }
+
+                // add the vertical border grid (1, 2, 3, ...)
+                int line = -1;
+                int numbersFullLoopCount = -1;
+                int realLineIndex = 0;
+                for (int i = 0; i < output.Count - 1; i++) {
+                    int newLineCount = Regex.Matches(output[i].String, "\n").Count;
+                    realLineIndex += newLineCount;
+                    if (realLineIndex <= 1 || newLineCount == 0) { continue; } else {
+                        line += newLineCount;
+                    }
+                    int displayNum = (line % 9) + 1;
+                    if (displayNum == 1) numbersFullLoopCount++;
+                    string spaceAfterNumber = " ";
+                    if (numbersFullLoopCount == 1) spaceAfterNumber = "'";
+                    if (numbersFullLoopCount > 1) spaceAfterNumber = "\"";
+                    if (numbersFullLoopCount > 2) spaceAfterNumber = "\"'";
+                    spaceAfterNumber += new string(' ', 3 - spaceAfterNumber.Length);
+                    output.Insert(i + 1,
+                        new(displayNum.ToString() + spaceAfterNumber,
+                        line == CurPos.Y ? currentPosColor : ConsoleColor.Gray)
+                    );
+                }
+
+                output.Insert(0, new("    "));
+
+                if (output.Last().String == "\n") output.RemoveAt(output.Count - 1);
+                return output;
+            }
         }
 
-        public static class ConsoleResize {
+        private static class ConsoleResize {
             private static Coords? previousSize = null;
             private static Coords? _currentSize = null;
             private static Coords? currentSize {
@@ -334,7 +512,7 @@ Press any key to continue . . . ");
             }
         }
 
-        public static void PrintColoredStrings(List<StringColorData> colorStringData) {
+        private static void PrintColoredStrings(List<StringColorData> colorStringData) {
             foreach (var colorStringPair in colorStringData) {
                 Console.ForegroundColor = colorStringPair.Color;
                 Console.BackgroundColor = colorStringPair.BGColor ?? default;
@@ -343,110 +521,6 @@ Press any key to continue . . . ");
             //Console.ResetColor();
             Console.ForegroundColor = ConsoleColor.White;
             Console.WriteLine();
-        }
-
-        public static List<StringColorData> CreateGridString(Grid grid, MinesweeperGame game, Coords cursor) {
-            List<StringColorData> output = new();
-            for (int y = 0; y < grid.GetLength(0); y++) {
-                for (int x = 0; x < grid.GetLength(1); x++) {
-                    GridCell gridItem = grid[y, x];
-                    StringColorData stringColorData = new("") {
-                        Color = ConsoleColor.White
-                    };
-
-                    // show the mines if the game has ended
-                    if ((game.MineAt(new(x, y)) != null) && (game.GameEnd || game.UncoveredCellsCoords.Contains(new(x, y)))) {
-                        gridItem.Type = GridCellDisplayType.Mine;
-                    }
-
-                    // draw cursor
-                    if (cursor.X == x && cursor.Y == y) {
-                        stringColorData.BGColor = ConsoleColor.DarkGray;
-                    }
-
-                    // update stringColorData with data from gridItem
-                    GridCellDisplayTypeStringDict.TryGetValue(gridItem.Type, out var itemStr);
-                    stringColorData.String = itemStr ?? "";
-
-                    // draw numbers
-                    if (gridItem.Type == GridCellDisplayType.Uncovered) {
-                        int? number = gridItem.Data.Number;
-                        stringColorData.String = gridItem.Data.Number + " ";
-                        if (number == 0) stringColorData.String = "  ";
-
-                        stringColorData.Color = gridItem.Data.Number switch {
-                            1 => ConsoleColor.Blue,
-                            2 => ConsoleColor.Green,
-                            3 => ConsoleColor.Red,
-                            4 => ConsoleColor.DarkBlue,
-                            5 => ConsoleColor.DarkYellow,
-                            6 => ConsoleColor.DarkCyan,
-                            7 => ConsoleColor.Magenta,
-                            8 => ConsoleColor.Yellow,
-                            _ => stringColorData.Color
-                        };
-                    }
-
-                    // draw flag
-                    if (gridItem.Type == GridCellDisplayType.Flag) stringColorData.Color = ConsoleColor.DarkRed;
-
-                    output.Add(stringColorData);
-                }
-                output.Add(new("\n", ConsoleColor.White));
-            }
-
-            const ConsoleColor currentPosColor = ConsoleColor.DarkCyan;
-
-            // add the horizontal border grid (A, B, C, ...)
-            string loopingAlphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-            int alphabetFullLoopCount = 0;
-            int loopCount = game.GameGrid.GetLength(1);
-            foreach (int i in Enumerable.Range(0, loopCount)) {
-                output.Insert(i,
-                    new(loopingAlphabet[0].ToString() + (alphabetFullLoopCount == 0 ? " " : "'"),
-                    i == cursor.X ? currentPosColor : ConsoleColor.Gray)
-                );
-                List<char> alphabetList = loopingAlphabet.ToList();
-                char temp = alphabetList[0];
-                alphabetList.RemoveAt(0);
-                alphabetList.Add(temp);
-                loopingAlphabet = string.Join("", alphabetList);
-                if (i + 1 == loopCount) {
-                    foreach (int j in Enumerable.Range(0, 2)) {
-                        output.Insert(i + 1 + j, new("\n"));
-                    }
-                }
-
-                if (loopingAlphabet.StartsWith('A')) alphabetFullLoopCount++;
-            }
-
-            // add the vertical border grid (1, 2, 3, ...)
-            int line = -1;
-            int numbersFullLoopCount = -1;
-            int realLineIndex = 0;
-            for (int i = 0; i < output.Count - 1; i++) {
-                int newLineCount = Regex.Matches(output[i].String, "\n").Count;
-                realLineIndex += newLineCount;
-                if (realLineIndex <= 1 || newLineCount == 0) { continue; } else {
-                    line += newLineCount;
-                }
-                int displayNum = (line % 9) + 1;
-                if (displayNum == 1) numbersFullLoopCount++;
-                string spaceAfterNumber = " ";
-                if (numbersFullLoopCount == 1) spaceAfterNumber = "'";
-                if (numbersFullLoopCount > 1) spaceAfterNumber = "\"";
-                if (numbersFullLoopCount > 2) spaceAfterNumber = "\"'";
-                spaceAfterNumber += new string(' ', 3 - spaceAfterNumber.Length);
-                output.Insert(i + 1,
-                    new(displayNum.ToString() + spaceAfterNumber,
-                    line == cursor.Y ? currentPosColor : ConsoleColor.Gray)
-                );
-            }
-
-            output.Insert(0, new("    "));
-
-            if (output.Last().String == "\n") output.RemoveAt(output.Count - 1);
-            return output;
         }
 
         public class Mine {
@@ -464,12 +538,12 @@ Press any key to continue . . . ");
             public static Dictionary<GridCellDisplayType, string> GridCellDisplayTypeStringDict = new() {
                 [GridCellDisplayType.Flag] = "⚑ ",
                 [GridCellDisplayType.Mine] = "💣",
-                [GridCellDisplayType.Covered] = "■ " // "▇ " // "■ " // □
+                [GridCellDisplayType.Covered] = "■ "
             };
         }
 
         public record struct Coords(int X, int Y);
-        public class StringColorData {
+        private class StringColorData {
             public string String = "";
             public ConsoleColor Color;
             public ConsoleColor? BGColor = null;
@@ -480,7 +554,7 @@ Press any key to continue . . . ");
             }
         }
 
-        public static void JumpToPrevLineClear(int lineCount = 1) {
+        private static void JumpToPrevLineClear(int lineCount = 1) {
             foreach (int _ in Enumerable.Range(0, lineCount)) {
                 Console.CursorTop--;
                 Console.CursorLeft = 0;
@@ -489,46 +563,19 @@ Press any key to continue . . . ");
             }
         }
 
-        public static void ClearConsoleKeyInput() {
+        private static void ClearConsoleKeyInput() {
             if (Console.KeyAvailable) Console.ReadKey(true);
         }
 
-        public static List<Coords> GetCellsAround(Coords offset, Grid grid) {
-            List<Coords> result = new();
-
-            // generate square of coords
-            for (int y = -1; y < 2; y++) {
-                for (int x = -1; x < 2; x++) {
-                    Coords toAdd = new(x, y);
-                    result.Add(toAdd);
-                }
-            }
-
-            // remove the center
-            result.Remove(new(0, 0));
-
-            // add offset to the result
-            for (int i = 0; i < result.Count; i++) {
-                Coords item = result[i];
-                result[i] = new(item.X + offset.X, item.Y + offset.Y);
-            }
-
-            // remove coords that are outside of the grid
-            foreach (var item in result.ToList()) {
-                if (item.X >= grid.GetLength(1) || item.Y >= grid.GetLength(0) || item.X < 0 || item.Y < 0)
-                    result.Remove(item);
-            }
-            return result.Distinct().ToList();
-        }
-
-        public static int NumInput(string prompt, string? defaultInput, int? defaultOutput) {
+        private static int NumInput(string prompt, string? defaultInput, int? defaultOutput, int? min = null) {
             bool ok = false;
             int input = 0;
             while (!ok) {
                 Console.Write(prompt);
-                string readLine = Console.ReadLine();
+                string readLine = Console.ReadLine() ?? "";
                 ok = int.TryParse(readLine, out input);
                 if (defaultInput != null && defaultOutput != null && readLine == defaultInput) return (int)defaultOutput;
+                if (min != null && input < min) ok = false;
                 if (!ok) JumpToPrevLineClear();
             }
             return input;
