@@ -65,6 +65,7 @@ namespace terminal_minesweeper {
                 GridSize = size;
             }
 
+            /// <returns>If the user requested the game to exit</returns>
             public bool Loop() {
                 Console.Clear();
                 // reset vars
@@ -228,9 +229,7 @@ namespace terminal_minesweeper {
                             }
 
                             // auto-reveal
-                            //if (UncoveredCellsCoords.Count == 0) {
                             AutoReveal(CurPos);
-                            //}
 
                             uncovered = true;
                             ManuallyUncoveredCells++;
