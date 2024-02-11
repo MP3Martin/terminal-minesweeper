@@ -5,4 +5,4 @@
 
 <br>
 
-<a href="#/"><img src="https://github.com/MP3Martin/terminal-minesweeper/assets/60501493/603075f9-761f-4029-b184-870d92cbb587" style="width:200px;"/></a>
+<a href="#/"><img src="https://github.com/MP3Martin/terminal-minesweeper/assets/60501493/dcc1ce82-8831-41d8-884c-4e74fce5f7c9" style="width:200px;"/></a>
