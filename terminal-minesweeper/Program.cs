@@ -56,8 +56,8 @@ namespace terminal_minesweeper {
             private Grid GameGrid = new(0, 0);
             private Coords GridSize = new(0, 0);
             private List<Mine> Mines = new();
-            private List<Coords> FlaggedCellsCoords = new();
-            private List<Coords> UncoveredCellsCoords = new();
+            private HashSet<Coords> FlaggedCellsCoords = new();
+            private HashSet<Coords> UncoveredCellsCoords = new();
             private int ManuallyUncoveredCells = 0;
             private bool GameEnd = false;
 
@@ -99,7 +99,7 @@ namespace terminal_minesweeper {
                         GameEnd = true;
                         gameWon = false;
                     }
-                    if (UncoveredCellsCoords.Count + Mines.Count == GameGrid.GetLength(0) * GameGrid.GetLength(1)) {
+                    if (UncoveredCellsCoords.Count + Mines.Count == GridSize.X * GridSize.Y) {
                         GameEnd = true;
                         gameWon = true;
                         if (UncoveredCellsCoords.Any(coords => MineAt(coords) != null)) gameWon = false;
@@ -214,7 +214,7 @@ namespace terminal_minesweeper {
                             }
                             break;
                         case ConsoleKey.Enter or ConsoleKey.Spacebar:
-                            // do nothing if the cell is already uncovered
+                            // do nothing if the cell is already uncovered or the cell is flagged
                             if (FlaggedCellsCoords.Contains(CurPos) || UncoveredCellsCoords.Contains(CurPos)) break;
 
                             // move/remove the mine if it is the first thing the user reveals
@@ -247,9 +247,9 @@ namespace terminal_minesweeper {
                     if (visitedCells.Contains(currentCoords)) return; // skip if already visited
                     visitedCells.Add(currentCoords);
 
-                    if (!UncoveredCellsCoords.Contains(currentCoords)) UncoveredCellsCoords.Add(currentCoords);
+                    UncoveredCellsCoords.Add(currentCoords);
                     if (GameGrid[currentCoords].Data.Number > 0) return;
-                    List<Coords> neighbours = GetCellsAround(currentCoords);
+                    HashSet<Coords> neighbours = GetCellsAround(currentCoords);
                     foreach (var neighbour in neighbours) {
                         RecursiveAutoReveal(neighbour);
                     }
@@ -272,7 +272,7 @@ namespace terminal_minesweeper {
                 return null;
             }
 
-            private static void UpdateGrid(ref Grid grid, List<Coords> flagsCoords, List<Coords> uncoveredCoords) {
+            private static void UpdateGrid(ref Grid grid, HashSet<Coords> flagsCoords, HashSet<Coords> uncoveredCoords) {
                 for (int y = 0; y < grid.GetLength(0); y++) {
                     for (int x = 0; x < grid.GetLength(1); x++) {
                         grid[y, x].Type = GridCellDisplayType.Covered;
@@ -288,7 +288,7 @@ namespace terminal_minesweeper {
             }
 
             private Coords GetRandomMineCoords() {
-                List<Coords> allMineCoords = Mines.Select(mineItem => mineItem.Coordinates).ToList();
+                HashSet<Coords> allMineCoords = Mines.Select(item => item.Coordinates).ToHashSet();
                 int tries = 0;
                 Coords newMineCoords;
                 while (tries < ((GameGrid.GetLength(0) + GameGrid.GetLength(1)) * 3)) {
@@ -324,23 +324,6 @@ namespace terminal_minesweeper {
                 }
             }
 
-            private static void ShowInfoScreen(List<StringColorData> stringColorData) {
-                Console.Clear();
-                PrintColoredStrings(stringColorData);
-                Console.ForegroundColor = ConsoleColor.Gray;
-                Console.Write("Press any key to continue . . . ");
-                Console.ResetColor();
-                Console.CursorVisible = true;
-                Console.ReadKey(true);
-                Console.CursorVisible = false;
-                Console.WriteLine();
-                Console.Clear();
-            }
-
-            private static void ShowInfoScreen(string text) {
-                ShowInfoScreen(new List<StringColorData>() { new(text) });
-            }
-
             public class Grid {
                 private GridCell[,] _grid = new GridCell[0, 0];
                 public Grid(int sizeY, int sizeX) {
@@ -366,8 +349,8 @@ namespace terminal_minesweeper {
                 public int GetLength(int dimension) => _grid.GetLength(dimension);
             }
 
-            private List<Coords> GetCellsAround(Coords offset) {
-                List<Coords> result = new();
+            private HashSet<Coords> GetCellsAround(Coords offset) {
+                HashSet<Coords> result = new();
 
                 // generate square of coords
                 for (int y = -1; y < 2; y++) {
@@ -380,18 +363,17 @@ namespace terminal_minesweeper {
                 // remove the center
                 result.Remove(new(0, 0));
 
-                // add offset to the result
-                for (int i = 0; i < result.Count; i++) {
-                    Coords item = result[i];
-                    result[i] = new(item.X + offset.X, item.Y + offset.Y);
-                }
+                result = result.Select(item => {
+                    item.X += offset.X;
+                    item.Y += offset.Y;
+                    return item;
+                }).ToHashSet();
 
                 // remove coords that are outside of the grid
-                foreach (var item in result.ToList()) {
-                    if (item.X >= GridSize.X || item.Y >= GridSize.Y || item.X < 0 || item.Y < 0)
-                        result.Remove(item);
+                foreach (var item in result) {
+                    if (item.X >= GridSize.X || item.Y >= GridSize.Y || item.X < 0 || item.Y < 0) result.Remove(item);
                 }
-                return result.Distinct().ToList();
+                return result;
             }
 
             private List<StringColorData> CreateGridString() {
