@@ -113,8 +113,8 @@ namespace terminal_minesweeper {
                         gameWon = true;
                         if (UncoveredCellsCoords.Any(coords => MineAt(coords) != null)) gameWon = false;
                     }
-                    UpdateTerminal();
                 }
+                UpdateTerminal();
                 Thread.Sleep(300);
                 ClearConsoleKeyInput();
                 // hide the cursor
