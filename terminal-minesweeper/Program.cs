@@ -240,13 +240,13 @@ namespace terminal_minesweeper {
             private void AutoReveal(Coords coords) {
                 HashSet<Coords> visitedCells = new();
 
-                void RecursiveAutoReveal(Coords coords) {
-                    if (visitedCells.Contains(coords)) return; // skip if already visited
-                    visitedCells.Add(coords);
+                void RecursiveAutoReveal(Coords currentCoords) {
+                    if (visitedCells.Contains(currentCoords)) return; // skip if already visited
+                    visitedCells.Add(currentCoords);
 
-                    if (!UncoveredCellsCoords.Contains(coords)) UncoveredCellsCoords.Add(coords);
-                    if (GameGrid[coords].Data.Number > 0) return;
-                    List<Coords> neighbours = GetCellsAround(coords);
+                    if (!UncoveredCellsCoords.Contains(currentCoords)) UncoveredCellsCoords.Add(currentCoords);
+                    if (GameGrid[currentCoords].Data.Number > 0) return;
+                    List<Coords> neighbours = GetCellsAround(currentCoords);
                     foreach (var neighbour in neighbours) {
                         RecursiveAutoReveal(neighbour);
                     }
