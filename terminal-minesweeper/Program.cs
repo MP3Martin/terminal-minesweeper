@@ -1,5 +1,4 @@
-﻿using System.Text.RegularExpressions;
-using static terminal_minesweeper.Program.Mine;
+﻿using static terminal_minesweeper.Program.Mine;
 using static terminal_minesweeper.Program.MinesweeperGame.GridCell;
 
 namespace terminal_minesweeper {
@@ -8,7 +7,7 @@ namespace terminal_minesweeper {
             public const string CheatCode = "cheat";
         }
         const string Name = "terminal-minesweeper";
-        const string Version = "v1.0.0";
+        const string Version = "v1.0.1";
         static void Main(string[] args) {
             Console.OutputEncoding = System.Text.Encoding.UTF8;
             Console.Title = $"{Name} @{Version}";
@@ -49,10 +48,10 @@ namespace terminal_minesweeper {
             private Coords CurPos {
                 get => _curPos;
                 set {
-                    if (value.Y >= GameGrid.GetLength(0)) value.Y = 0;
-                    if (value.Y < 0) value.Y = GameGrid.GetLength(0) - 1;
-                    if (value.X >= GameGrid.GetLength(1)) value.X = 0;
-                    if (value.X < 0) value.X = GameGrid.GetLength(1) - 1;
+                    if (value.Y >= GridSize.Y) value.Y = 0;
+                    if (value.Y < 0) value.Y = GridSize.Y - 1;
+                    if (value.X >= GridSize.X) value.X = 0;
+                    if (value.X < 0) value.X = GridSize.X - 1;
                     _curPos = value;
                 }
             }
@@ -145,8 +144,8 @@ namespace terminal_minesweeper {
             }
 
             private void RecalculateCellNumbers() {
-                for (int y = 0; y < GameGrid.GetLength(0); y++) {
-                    for (int x = 0; x < GameGrid.GetLength(1); x++) {
+                for (int y = 0; y < GridSize.Y; y++) {
+                    for (int x = 0; x < GridSize.X; x++) {
                         if (MineAt(new(x, y)) != null) continue;
                         var cellsAround = GetCellsAround(new(x, y));
                         int mineCountAround = cellsAround.Where(cell => MineAt(cell) != null).Count();
@@ -160,19 +159,19 @@ namespace terminal_minesweeper {
                 const int enterPressCountToContinue = 3;
                 static void PrintKeyInfo(int enterPressCount = enterPressCountToContinue) {
                     PrintColoredStrings(new() {
-                        new("\nPress "),
+                        "\nPress ",
                         new($"{(enterPressCount == 0 ? "✓" : enterPressCount)}×ENTER", ConsoleColor.Blue),
-                        new("/"),
+                        "/",
                         new("SPACE ", ConsoleColor.Blue),
-                        new("to "),
+                        "to ",
                         new("Play ", ConsoleColor.Blue),
-                        new("again."),
+                        "again.",
 
-                        new("\nPress "),
+                        "\nPress ",
                         new("X ", ConsoleColor.Magenta),
-                        new("to "),
+                        "to ",
                         new("Exit", ConsoleColor.Magenta),
-                        new(".")
+                        "."
                     });
                 }
                 int enterPressCount = 0;
@@ -322,10 +321,10 @@ namespace terminal_minesweeper {
                 HashSet<Coords> allMineCoords = Mines.Select(item => item.Coordinates).ToHashSet();
                 int tries = 0;
                 Coords newMineCoords;
-                while (tries < ((GameGrid.GetLength(0) + GameGrid.GetLength(1)) * 3)) {
+                while (tries < ((GridSize.Y + GridSize.X) * 3)) {
                     newMineCoords = new(
-                        RandomGen.Next(0, GameGrid.GetLength(1)),
-                        RandomGen.Next(0, GameGrid.GetLength(0))
+                        RandomGen.Next(0, GridSize.X),
+                        RandomGen.Next(0, GridSize.Y)
                     );
                     if (!allMineCoords.Contains(newMineCoords)) return newMineCoords;
                     tries++;
@@ -408,12 +407,16 @@ namespace terminal_minesweeper {
 
             private List<StringColorData> CreateGridString() {
                 List<StringColorData> output = new();
-                for (int y = 0; y < GameGrid.GetLength(0); y++) {
-                    for (int x = 0; x < GameGrid.GetLength(1); x++) {
+                for (int y = 0; y < GridSize.Y; y++) {
+                    for (int x = 0; x < GridSize.X; x++) {
                         GridCell gridItem = GameGrid[y, x];
-                        StringColorData stringColorData = new("") {
-                            Color = ConsoleColor.White
-                        };
+                        StringColorData stringColorData = new("", ConsoleColor.White);
+
+                        if (y == 0) stringColorData.Data.CellTop = true;
+                        if (x == 0) {
+                            stringColorData.Data.CellLeft = true;
+                            stringColorData.Data.UniqueY = y;
+                        }
 
                         // show the mines if the game has ended
                         if ((MineAt(new(x, y)) != null) && (GameEnd || UncoveredCellsCoords.Contains(new(x, y)) || CheatMode)) {
@@ -458,56 +461,61 @@ namespace terminal_minesweeper {
 
                 const ConsoleColor currentPosColor = ConsoleColor.DarkCyan;
 
-                // add the horizontal border grid (A, B, C, ...)
+                // add the horizontal grid border (A, B, C, ...)
+                AddHorizontalBorder(ref output, currentPosColor);
+
+                // add the vertical grid border (1, 2, 3, ...)
+                AddVerticalBorder(ref output, currentPosColor);
+
+                if (output.Last().String == "\n") output.RemoveAt(output.Count - 1);
+                return output;
+            }
+
+            private void AddHorizontalBorder(ref List<StringColorData> output, ConsoleColor currentPosColor) {
                 string loopingAlphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
                 int alphabetFullLoopCount = 0;
-                int loopCount = GameGrid.GetLength(1);
-                foreach (int i in Enumerable.Range(0, loopCount)) {
-                    output.Insert(i,
-                        new(loopingAlphabet[0].ToString() + (alphabetFullLoopCount == 0 ? " " : "'"),
-                        i == CurPos.X ? currentPosColor : ConsoleColor.Gray)
-                    );
-                    List<char> alphabetList = loopingAlphabet.ToList();
-                    char temp = alphabetList[0];
-                    alphabetList.RemoveAt(0);
-                    alphabetList.Add(temp);
-                    loopingAlphabet = string.Join("", alphabetList);
-                    if (i + 1 == loopCount) {
-                        foreach (int j in Enumerable.Range(0, 2)) {
-                            output.Insert(i + 1 + j, new("\n"));
-                        }
-                    }
+                List<StringColorData> topCells = output.Where(item => item.Data.CellTop != null && (bool)item.Data.CellTop).ToList();
+                int currentX = 0;
+                foreach (var topCell in topCells) {
+                    StringColorData toAdd = new(loopingAlphabet[0] + (alphabetFullLoopCount == 0 ? " " : "'")) {
+                        Color = CurPos.X == currentX ? currentPosColor : ConsoleColor.Gray
+                    };
 
+                    output.Insert(currentX, toAdd);
+
+                    loopingAlphabet = loopingAlphabet[1..] + loopingAlphabet[0];
                     if (loopingAlphabet.StartsWith('A')) alphabetFullLoopCount++;
+                    currentX++;
                 }
+                for (int i = 0; i < 2; i++) {
+                    output.Insert(topCells.Count + i, "\n");
+                }
+            }
 
-                // add the vertical border grid (1, 2, 3, ...)
-                int line = -1;
+            private void AddVerticalBorder(ref List<StringColorData> output, ConsoleColor currentPosColor) {
+                int line = 0;
                 int numbersFullLoopCount = -1;
-                int realLineIndex = 0;
-                for (int i = 0; i < output.Count - 1; i++) {
-                    int newLineCount = Regex.Matches(output[i].String, "\n").Count;
-                    realLineIndex += newLineCount;
-                    if (realLineIndex <= 1 || newLineCount == 0) { continue; } else {
-                        line += newLineCount;
-                    }
+                List<StringColorData> leftCells = output.Where(item => item.Data.CellLeft != null && (bool)item.Data.CellLeft).ToList();
+                foreach (var leftCell in leftCells) {
                     int displayNum = (line % 9) + 1;
                     if (displayNum == 1) numbersFullLoopCount++;
-                    string spaceAfterNumber = " ";
+                    string spaceAfterNumber = "";
                     if (numbersFullLoopCount == 1) spaceAfterNumber = "'";
                     if (numbersFullLoopCount > 1) spaceAfterNumber = "\"";
                     if (numbersFullLoopCount > 2) spaceAfterNumber = "\"'";
                     spaceAfterNumber += new string(' ', 3 - spaceAfterNumber.Length);
-                    output.Insert(i + 1,
-                        new(displayNum.ToString() + spaceAfterNumber,
-                        line == CurPos.Y ? currentPosColor : ConsoleColor.Gray)
-                    );
+
+                    StringColorData toAdd = new(displayNum + spaceAfterNumber) {
+                        Color = CurPos.Y == line ? currentPosColor : ConsoleColor.Gray
+                    };
+
+                    var leftCellIndex = output.IndexOf(leftCell);
+
+                    output.Insert(leftCellIndex, toAdd);
+
+                    line++;
                 }
-
-                output.Insert(0, new("    "));
-
-                if (output.Last().String == "\n") output.RemoveAt(output.Count - 1);
-                return output;
+                output.Insert(0, "    ");
             }
         }
 
@@ -533,7 +541,6 @@ namespace terminal_minesweeper {
                 Console.BackgroundColor = colorStringPair.BGColor ?? default;
                 Console.Write(colorStringPair.String);
             }
-            //Console.ResetColor();
             Console.ForegroundColor = ConsoleColor.White;
             Console.WriteLine();
         }
@@ -562,10 +569,23 @@ namespace terminal_minesweeper {
             public string String = "";
             public ConsoleColor Color;
             public ConsoleColor? BGColor = null;
-            public StringColorData(string str, ConsoleColor color = ConsoleColor.White, ConsoleColor? bgColor = null) {
+            public AdditionalData Data = new();
+
+            public StringColorData(string str, ConsoleColor color = ConsoleColor.White, ConsoleColor? bgColor = null, AdditionalData? data = null) {
                 String = str;
                 Color = color;
                 BGColor = bgColor ?? BGColor;
+                Data = data ?? Data;
+            }
+
+            public class AdditionalData {
+                public bool? CellLeft;
+                public bool? CellTop;
+                public int? UniqueY;
+            }
+
+            public static implicit operator StringColorData(string str) {
+                return new(str);
             }
         }
 
