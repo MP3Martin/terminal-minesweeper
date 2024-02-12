@@ -102,7 +102,7 @@ namespace terminal_minesweeper {
                 bool gameWon = false;
                 while (!GameEnd) {
                     UpdateTerminal();
-                    CursorShotInput();
+                    UserInput();
                     UncoveredCellsCoords.Add(CurPos);
                     if (MineAt(CurPos) != null) {
                         GameEnd = true;
@@ -198,7 +198,7 @@ namespace terminal_minesweeper {
                 }
             }
 
-            private void CursorShotInput() {
+            private void UserInput() {
                 bool uncovered = false;
                 while (!uncovered) {
                     UpdateTerminal();
