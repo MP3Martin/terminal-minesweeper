@@ -102,7 +102,7 @@ namespace terminal_minesweeper {
                 while (!GameEnd) {
                     UpdateTerminal();
                     UserInput();
-                    UncoveredCellsCoords.Add(CurPos);
+                    UncoverCell(CurPos);
                     if (MineAt(CurPos) != null) {
                         GameEnd = true;
                         gameWon = false;
@@ -141,6 +141,11 @@ namespace terminal_minesweeper {
                     });
                 }
                 return EndScreenInput();
+            }
+
+            private void UncoverCell(Coords coords) {
+                FlaggedCellsCoords.Remove(coords);
+                UncoveredCellsCoords.Add(coords);
             }
 
             private void RecalculateCellNumbers() {
@@ -278,7 +283,7 @@ namespace terminal_minesweeper {
                     if (visitedCells.Contains(currentCoords)) return; // skip if already visited
                     visitedCells.Add(currentCoords);
 
-                    UncoveredCellsCoords.Add(currentCoords);
+                    UncoverCell(currentCoords);
 
                     // do not recursively reveal neighbours if the current cell has at least one neighbouring mine
                     if (GameGrid[currentCoords].Data.Number > 0) return;
@@ -522,7 +527,7 @@ namespace terminal_minesweeper {
         private static class ConsoleResize {
             private static Coords? previousSize = null;
             private static Coords? _currentSize = null;
-            private static Coords? currentSize {
+            private static Coords? CurrentSize {
                 get => _currentSize;
                 set {
                     previousSize = _currentSize;
@@ -530,8 +535,8 @@ namespace terminal_minesweeper {
                 }
             }
             public static bool CheckResized() {
-                currentSize = new(Console.BufferWidth, Console.BufferHeight);
-                return currentSize != previousSize;
+                CurrentSize = new(Console.BufferWidth, Console.BufferHeight);
+                return CurrentSize != previousSize;
             }
         }
 
