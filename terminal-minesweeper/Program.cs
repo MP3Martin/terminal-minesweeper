@@ -7,7 +7,7 @@ namespace terminal_minesweeper {
             public const string CheatCode = "cheat";
         }
         const string Name = "terminal-minesweeper";
-        const string Version = "v1.0.1";
+        const string Version = "v1.0.2";
         static void Main(string[] args) {
             Console.OutputEncoding = System.Text.Encoding.UTF8;
             Console.Title = $"{Name} @{Version}";
