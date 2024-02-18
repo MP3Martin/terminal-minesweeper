@@ -1,16 +1,15 @@
-﻿using static terminal_minesweeper.Program.Mine;
+﻿using System.Text;
+using static System.ConsoleColor;
+using static terminal_minesweeper.Program.Mine;
 using static terminal_minesweeper.Program.MinesweeperGame.GridCell;
+using static terminal_minesweeper.Utils;
 
 namespace terminal_minesweeper {
-    internal class Program {
-        static class Consts {
-            public const string CheatCode = "cheat";
-        }
-        const string Name = "terminal-minesweeper";
-        const string Version = "v1.0.2";
-        static void Main(string[] args) {
-            Console.OutputEncoding = System.Text.Encoding.UTF8;
-            Console.Title = $"{Name} @{Version}";
+    internal static class Program {
+        private static void Main() {
+            Console.OutputEncoding = Encoding.UTF8;
+            Console.Title = $"{Consts.Name} @{Consts.Version}";
+            var defaultBackgroundColor = Console.BackgroundColor;
 
             Console.Write(@"Welcome!
 
@@ -25,12 +24,13 @@ namespace terminal_minesweeper {
 ");
 
             Coords gameSize = new() {
-                X = NumInput("Enter game width (press enter for default): ", "", 10, 3),
-                Y = NumInput("Enter game height (press enter for default): ", "", 10, 3)
+                X = NumInput(new StringColorDataList(Gray, "↔️ Enter game ", ("width  ", White), "(press enter for default): "), defaultBackgroundColor, "", 10, 3),
+                Y = NumInput(new StringColorDataList(Gray, "↕️ Enter game ", ("height ", White), "(press enter for default): "), defaultBackgroundColor, "", 10, 3)
             };
-
+            int? mineCount = NumInput(new StringColorDataList(Gray, "💣 Enter ", ("mine count  ", White), "(press enter for default): "), defaultBackgroundColor, "", -1, 1);
+            mineCount = mineCount == -1 ? null : mineCount;
             Console.CursorVisible = false;
-            MinesweeperGame game = new(gameSize);
+            MinesweeperGame game = new(gameSize, defaultBackgroundColor, mineCount);
 
             Console.CancelKeyPress += (_, _) => {
                 Console.CursorVisible = true;
@@ -42,75 +42,134 @@ namespace terminal_minesweeper {
             Console.CursorVisible = true;
         }
 
+        private static void PrintColoredStrings(StringColorData colorStringData, bool noNewLine = false, ConsoleColor? defaultBackgroundColor = null, ConsoleColor? defaultColor = null) {
+            PrintColoredStrings(new List<StringColorData> { colorStringData }, noNewLine, defaultBackgroundColor, defaultColor);
+        }
+        private static void PrintColoredStrings(List<StringColorData> colorStringData, bool noNewLine = false, ConsoleColor? defaultBackgroundColor = null, ConsoleColor? defaultColor = null) {
+            var toPrint = new StringBuilder();
+            foreach (var colorStringDataItem in colorStringData) {
+                var foregroundColor = colorStringDataItem.Color ?? defaultColor ?? White;
+                var backgroundColor = colorStringDataItem.BgColor ?? defaultBackgroundColor ?? Console.BackgroundColor;
+
+                toPrint.Append(ConsoleColorToAnsi(foregroundColor, false) + ConsoleColorToAnsi(backgroundColor, true) + colorStringDataItem.String + "\x1b[0m");
+            }
+            if (!noNewLine) toPrint.AppendLine();
+            Console.Write(toPrint.ToString());
+        }
+
+        private static void JumpToPrevLineClear(int lineCount = 1) {
+            foreach (var _ in Enumerable.Range(0, lineCount)) {
+                Console.CursorTop--;
+                Console.CursorLeft = 0;
+                Console.Write(new string(' ', Console.BufferWidth - 1));
+                Console.CursorLeft = 0;
+            }
+        }
+
+        private static void ClearConsoleKeyInput() {
+            if (Console.KeyAvailable) Console.ReadKey(true);
+        }
+
+        private static int NumInput(List<StringColorData> prompt, ConsoleColor defaultBackgroundColor, string? defaultInput, int? defaultOutput, int? min = null) {
+            var ok = false;
+            var input = 0;
+            while (!ok) {
+                PrintColoredStrings(prompt, true, defaultBackgroundColor);
+                var readLine = Console.ReadLine() ?? "";
+                ok = int.TryParse(readLine, out input);
+                if (defaultInput != null && defaultOutput != null && readLine == defaultInput) return (int)defaultOutput;
+                if (input < min) ok = false;
+                if (!ok) JumpToPrevLineClear();
+            }
+            return input;
+        }
+        private static class Consts {
+            public const string Name = "terminal-minesweeper";
+            public const string Version = "v1.0.3";
+            public const string CheatCode = "cheat";
+        }
+
         public class MinesweeperGame {
-            private readonly Random RandomGen = new();
+            private readonly ConsoleColor _defaultBackgroundColor;
+            private readonly Coords _gridSize;
+            private readonly int? _mineCount;
+            private readonly Random _randomGen = new();
+            private Dictionary<Coords, Mine> _coordsMinesMap = new();
             private Coords _curPos;
+            private HashSet<Coords> _flaggedCellsCoords = new();
+            private bool _gameEnd;
+            private Grid _gameGrid = new(0, 0);
+            private bool _cheated;
+            private bool _cheatMode;
+            private string _cheatModeTyping = "";
+            private int _manuallyUncoveredCells;
+            private List<Mine> _mines = new();
+            private HashSet<Coords> _uncoveredCellsCoords = new();
+
+            public MinesweeperGame(Coords size, ConsoleColor defaultBackgroundColor, int? mineCount = null) {
+                _gridSize = size;
+                _mineCount = mineCount;
+
+                _mineCount ??= Math.Max(1, (int)(_gridSize.X * _gridSize.Y * 0.15));
+                _mineCount = Math.Min((int)_mineCount, _gridSize.X * _gridSize.Y);
+
+                _defaultBackgroundColor = defaultBackgroundColor;
+            }
             private Coords CurPos {
                 get => _curPos;
                 set {
-                    if (value.Y >= GridSize.Y) value.Y = 0;
-                    if (value.Y < 0) value.Y = GridSize.Y - 1;
-                    if (value.X >= GridSize.X) value.X = 0;
-                    if (value.X < 0) value.X = GridSize.X - 1;
+                    if (value.Y >= _gridSize.Y) value.Y = 0;
+                    if (value.Y < 0) value.Y = _gridSize.Y - 1;
+                    if (value.X >= _gridSize.X) value.X = 0;
+                    if (value.X < 0) value.X = _gridSize.X - 1;
                     _curPos = value;
                 }
-            }
-            private Grid GameGrid = new(0, 0);
-            private Coords GridSize = new(0, 0);
-            private List<Mine> Mines = new();
-            private HashSet<Coords> FlaggedCellsCoords = new();
-            private HashSet<Coords> UncoveredCellsCoords = new();
-            private int ManuallyUncoveredCells = 0;
-            private bool GameEnd = false;
-            private bool CheatMode = false;
-            private string CheatModeTyping = "";
-            private bool Cheated = false;
-
-            public MinesweeperGame(Coords size) {
-                GridSize = size;
             }
 
             /// <returns>If the user requested the game to exit</returns>
             public bool Loop() {
                 Console.Clear();
+                Console.WriteLine("Generating...");
                 // reset vars
                 CurPos = new(0, 0);
-                GameGrid = new(GridSize.Y, GridSize.X);
-                Mines = new();
-                FlaggedCellsCoords = new();
-                UncoveredCellsCoords = new();
-                ManuallyUncoveredCells = 0;
-                GameEnd = false;
-                CheatMode = false;
-                CheatModeTyping = "";
-                Cheated = false;
+                _gameGrid = new(_gridSize.Y, _gridSize.X);
+                _mines = new();
+                _coordsMinesMap = new();
+                _flaggedCellsCoords = new();
+                _uncoveredCellsCoords = new();
+                _manuallyUncoveredCells = 0;
+                _gameEnd = false;
+                _cheatMode = false;
+                _cheatModeTyping = "";
+                _cheated = false;
 
                 // generate random mines
-                int minesToAddCount = Math.Max(0, (int)(GridSize.X * GridSize.Y * 0.15));
                 do {
-                    foreach (int i in Enumerable.Range(0, minesToAddCount)) {
-                        Mines.Add(new Mine());
+                    foreach (var _ in Enumerable.Range(0, _mineCount ?? 1)) {
+                        _mines.Add(new());
                     }
-                    Mines.ForEach((mine) => { mine.Coordinates = GetRandomMineCoords(); });
-                    Mines.RemoveAll(mine => mine.Coordinates == new Coords(-1, -1));
-                } while (Mines.Count < 1);
+                    _mines.ForEach(mine => { mine.Coordinates = GetRandomMineCoords(); });
+                    _mines.RemoveAll(mine => mine.Coordinates == new Coords(-1, -1));
+                } while (_mines.Count < 1);
+
+                _coordsMinesMap = _mines.ToDictionary(item => item.Coordinates, item => item);
 
                 // calculate neighbour mine count for every cell
                 RecalculateCellNumbers();
 
-                bool gameWon = false;
-                while (!GameEnd) {
+                var gameWon = false;
+                while (!_gameEnd) {
                     UpdateTerminal();
                     UserInput();
                     UncoverCell(CurPos);
                     if (MineAt(CurPos) != null) {
-                        GameEnd = true;
+                        _gameEnd = true;
                         gameWon = false;
                     }
-                    if (UncoveredCellsCoords.Count + Mines.Count == GridSize.X * GridSize.Y) {
-                        GameEnd = true;
+                    if (_uncoveredCellsCoords.Count + _mines.Count == _gridSize.X * _gridSize.Y) {
+                        _gameEnd = true;
                         gameWon = true;
-                        if (UncoveredCellsCoords.Any(coords => MineAt(coords) != null)) gameWon = false;
+                        if (_uncoveredCellsCoords.Any(coords => MineAt(coords) != null)) gameWon = false;
                     }
                 }
                 UpdateTerminal();
@@ -120,69 +179,74 @@ namespace terminal_minesweeper {
                 _curPos = new(-1, -1);
                 UpdateTerminal();
 
-                Console.ForegroundColor = ConsoleColor.White;
+                Console.ForegroundColor = White;
                 Console.Write("\nYou ");
                 if (gameWon) {
-                    Console.ForegroundColor = ConsoleColor.Green;
+                    Console.ForegroundColor = Green;
                     Console.Write("WIN");
                 } else {
-                    Console.ForegroundColor = ConsoleColor.Red;
+                    Console.ForegroundColor = Red;
                     Console.Write("LOSE");
                 }
-                Console.ForegroundColor = ConsoleColor.White;
-                Console.WriteLine($"! ({ManuallyUncoveredCells} cells uncovered, " +
-                    $"{FlaggedCellsCoords.Count} flags placed, " +
-                    $"{Mines.Count(mine => FlaggedCellsCoords.Contains(mine.Coordinates))} " +
-                    $"out of {Mines.Count} mines were flagged)"
+                Console.ForegroundColor = White;
+                Console.WriteLine($"! ({_manuallyUncoveredCells} cells uncovered, " +
+                    $"{_flaggedCellsCoords.Count} flags placed, " +
+                    $"{_mines.Count(mine => _flaggedCellsCoords.Contains(mine.Coordinates))} " +
+                    $"out of {_mines.Count} mines were flagged)"
                 );
-                if (Cheated) {
-                    PrintColoredStrings(new(){
-                        new("⚠️ Warning: Cheat mode was activated at least once while playing this round! ⚠️", ConsoleColor.DarkYellow)
-                    });
+                if (_cheated) {
+                    PrintColoredStrings(new StringColorData("⚠️ Warning: Cheat mode was activated at least once while playing this round! ⚠️", DarkYellow));
                 }
                 return EndScreenInput();
             }
 
             private void UncoverCell(Coords coords) {
-                FlaggedCellsCoords.Remove(coords);
-                UncoveredCellsCoords.Add(coords);
+                _flaggedCellsCoords.Remove(coords);
+                _uncoveredCellsCoords.Add(coords);
             }
 
             private void RecalculateCellNumbers() {
-                for (int y = 0; y < GridSize.Y; y++) {
-                    for (int x = 0; x < GridSize.X; x++) {
+                for (var y = 0; y < _gridSize.Y; y++) {
+                    for (var x = 0; x < _gridSize.X; x++) {
                         if (MineAt(new(x, y)) != null) continue;
                         var cellsAround = GetCellsAround(new(x, y));
-                        int mineCountAround = cellsAround.Where(cell => MineAt(cell) != null).Count();
-                        GameGrid[y, x].Data.Number = mineCountAround;
+                        var mineCountAround = cellsAround.Count(cell => MineAt(cell) != null);
+                        _gameGrid[y, x].Data.Number = mineCountAround;
                     }
 
                 }
+
+                // Remove removed mines from MinesAtCoords
+                HashSet<Coords> allMineCoords = new(_mines.Select(item => item.Coordinates));
+                foreach (var coords in _coordsMinesMap.Keys.ToList()) {
+                    if (!allMineCoords.Contains(coords)) {
+                        _coordsMinesMap.Remove(coords);
+                    }
+                }
             }
 
-            private static bool EndScreenInput() {
+            private bool EndScreenInput() {
                 const int enterPressCountToContinue = 3;
-                static void PrintKeyInfo(int enterPressCount = enterPressCountToContinue) {
-                    PrintColoredStrings(new() {
+                void PrintKeyInfo(int enterPressCount = enterPressCountToContinue) {
+                    PrintColoredStrings(new StringColorDataList(
                         "\nPress ",
-                        new($"{(enterPressCount == 0 ? "✓" : enterPressCount)}×ENTER", ConsoleColor.Blue),
+                        new StringColorData($"{(enterPressCount == 0 ? "✓" : enterPressCount)}×ENTER", Blue),
                         "/",
-                        new("SPACE ", ConsoleColor.Blue),
+                        new StringColorData("SPACE ", Blue),
                         "to ",
-                        new("Play ", ConsoleColor.Blue),
+                        new StringColorData("Play ", Blue),
                         "again.",
-
                         "\nPress ",
-                        new("X ", ConsoleColor.Magenta),
+                        new StringColorData("X ", Magenta),
                         "to ",
-                        new("Exit", ConsoleColor.Magenta),
+                        new StringColorData("Exit", Magenta),
                         "."
-                    });
+                    ), defaultBackgroundColor: _defaultBackgroundColor);
                 }
-                int enterPressCount = 0;
+                var enterPressCount = 0;
                 PrintKeyInfo();
                 while (true) {
-                    ConsoleKey key = Console.ReadKey(true).Key;
+                    var key = Console.ReadKey(true).Key;
                     switch (key) {
                         case ConsoleKey.X:
                             return true;
@@ -196,35 +260,33 @@ namespace terminal_minesweeper {
                                 return false;
                             }
                             break;
-                        default:
-                            break;
                     }
                 }
             }
 
             private void UserInput() {
-                bool uncovered = false;
+                var uncovered = false;
                 while (!uncovered) {
                     UpdateTerminal();
-                    ConsoleKeyInfo input = Console.ReadKey(true);
+                    var input = Console.ReadKey(true);
 
                     // cheat mode
-                    char inputChar = input.KeyChar;
-                    CheatMode = false;
-                    CheatModeTyping += char.ToLower(inputChar);
-                    if (Consts.CheatCode.StartsWith(CheatModeTyping, StringComparison.Ordinal)) {
-                        if (CheatModeTyping == Consts.CheatCode) {
-                            CheatMode = true;
-                            Cheated = true;
-                            CheatModeTyping = "";
+                    var inputChar = input.KeyChar;
+                    _cheatMode = false;
+                    _cheatModeTyping += char.ToLower(inputChar);
+                    if (Consts.CheatCode.StartsWith(_cheatModeTyping, StringComparison.Ordinal)) {
+                        if (_cheatModeTyping == Consts.CheatCode) {
+                            _cheatMode = true;
+                            _cheated = true;
+                            _cheatModeTyping = "";
                             UpdateTerminal();
                         }
                         continue; // ignore the key press if it was a valid next cheat char
-                    } else {
-                        CheatModeTyping = "";
                     }
 
-                    ConsoleKey key = input.Key;
+                    _cheatModeTyping = "";
+
+                    var key = input.Key;
                     switch (key) {
                         case ConsoleKey.W or ConsoleKey.UpArrow:
                             CurPos = new(CurPos.X, CurPos.Y - 1);
@@ -240,24 +302,23 @@ namespace terminal_minesweeper {
                             break;
                         case ConsoleKey.E or ConsoleKey.F:
                             // do nothing if the cell is uncovered
-                            if (UncoveredCellsCoords.Contains(CurPos)) break;
+                            if (_uncoveredCellsCoords.Contains(CurPos)) break;
 
                             // toggle flagged
-                            if (FlaggedCellsCoords.Contains(CurPos)) {
-                                FlaggedCellsCoords.Remove(CurPos);
-                            } else {
-                                FlaggedCellsCoords.Add(CurPos);
+                            if (!_flaggedCellsCoords.Add(CurPos)) {
+                                _flaggedCellsCoords.Remove(CurPos);
                             }
+
                             break;
                         case ConsoleKey.Enter or ConsoleKey.Spacebar:
                             // do nothing if the cell is already uncovered or the cell is flagged
-                            if (FlaggedCellsCoords.Contains(CurPos) || UncoveredCellsCoords.Contains(CurPos)) break;
+                            if (_flaggedCellsCoords.Contains(CurPos) || _uncoveredCellsCoords.Contains(CurPos)) break;
 
                             // move/remove the mine if it is the first thing the user reveals
-                            Mine? mineAtCurPos = MineAt(CurPos);
-                            if (UncoveredCellsCoords.Count == 0 && mineAtCurPos != null) {
-                                if (Mines.Count > 1) {
-                                    Mines.Remove(mineAtCurPos);
+                            var mineAtCurPos = MineAt(CurPos);
+                            if (_uncoveredCellsCoords.Count == 0 && mineAtCurPos != null) {
+                                if (_mines.Count > 1) {
+                                    _mines.Remove(mineAtCurPos);
                                 } else {
                                     mineAtCurPos.Coordinates = GetRandomMineCoords();
                                 }
@@ -267,10 +328,8 @@ namespace terminal_minesweeper {
                             // auto-reveal
                             AutoReveal(CurPos);
 
-                            ManuallyUncoveredCells++;
+                            _manuallyUncoveredCells++;
                             uncovered = true;
-                            break;
-                        default:
                             break;
                     }
                 }
@@ -278,38 +337,44 @@ namespace terminal_minesweeper {
 
             private void AutoReveal(Coords coords) {
                 HashSet<Coords> visitedCells = new();
+                var recursionDepth = 0;
+
+                RecursiveAutoReveal(coords);
+                return;
 
                 void RecursiveAutoReveal(Coords currentCoords) {
                     if (visitedCells.Contains(currentCoords)) return; // skip if already visited
+                    if (recursionDepth > 5000) return; // prevent stack overflow
                     visitedCells.Add(currentCoords);
 
                     UncoverCell(currentCoords);
 
                     // do not recursively reveal neighbours if the current cell has at least one neighbouring mine
-                    if (GameGrid[currentCoords].Data.Number > 0) return;
-                    HashSet<Coords> neighbours = GetCellsAround(currentCoords);
+                    if (_gameGrid[currentCoords].Data.Number > 0) return;
+                    var neighbours = GetCellsAround(currentCoords);
                     foreach (var neighbour in neighbours) {
+                        recursionDepth++;
                         RecursiveAutoReveal(neighbour);
+                        recursionDepth--;
                     }
                 }
-
-                RecursiveAutoReveal(coords);
             }
 
             private void UpdateTerminal() {
                 if (ConsoleResize.CheckResized()) Console.Clear();
                 Console.SetCursorPosition(0, 0);
-                UpdateGrid(ref GameGrid, FlaggedCellsCoords, UncoveredCellsCoords);
-                PrintColoredStrings(CreateGridString());
+                UpdateGrid(ref _gameGrid, _flaggedCellsCoords, _uncoveredCellsCoords);
+                PrintColoredStrings(CreateGridString(), defaultBackgroundColor: _defaultBackgroundColor);
             }
 
-            public Mine? MineAt(Coords coords) {
-                return Mines.FirstOrDefault(mine => mine.Coordinates == coords);
+            private Mine? MineAt(Coords coords) {
+                _coordsMinesMap.TryGetValue(coords, out var result);
+                return result;
             }
 
             private static void UpdateGrid(ref Grid grid, HashSet<Coords> flagsCoords, HashSet<Coords> uncoveredCoords) {
-                for (int y = 0; y < grid.GetLength(0); y++) {
-                    for (int x = 0; x < grid.GetLength(1); x++) {
+                for (var y = 0; y < grid.GetLength(0); y++) {
+                    for (var x = 0; x < grid.GetLength(1); x++) {
                         grid[y, x].Type = GridCellDisplayType.Covered;
                     }
                 }
@@ -323,13 +388,12 @@ namespace terminal_minesweeper {
             }
 
             private Coords GetRandomMineCoords() {
-                HashSet<Coords> allMineCoords = Mines.Select(item => item.Coordinates).ToHashSet();
-                int tries = 0;
-                Coords newMineCoords;
-                while (tries < ((GridSize.Y + GridSize.X) * 3)) {
-                    newMineCoords = new(
-                        RandomGen.Next(0, GridSize.X),
-                        RandomGen.Next(0, GridSize.Y)
+                var allMineCoords = _mines.Select(item => item.Coordinates).ToHashSet();
+                var tries = 0;
+                while (tries < (_gridSize.Y + _gridSize.X) * 3) {
+                    var newMineCoords = new Coords(
+                        _randomGen.Next(0, _gridSize.X),
+                        _randomGen.Next(0, _gridSize.Y)
                     );
                     if (!allMineCoords.Contains(newMineCoords)) return newMineCoords;
                     tries++;
@@ -337,59 +401,12 @@ namespace terminal_minesweeper {
                 return new(-1, -1);
             }
 
-            public class GridCell {
-                public GridCellDisplayType Type = GridCellDisplayType.Covered;
-                public GridCellDisplayData Data = new();
-                public GridCell(GridCellDisplayType type = GridCellDisplayType.Covered, GridCellDisplayData? data = null) {
-                    Type = type;
-                    Data = data ?? Data;
-
-                }
-                public enum GridCellDisplayType {
-                    Covered,
-                    Uncovered,
-                    Flag,
-                    Mine
-                }
-                public class GridCellDisplayData {
-                    public int? Number;
-                    public GridCellDisplayData(int? number = null) {
-                        Number = number;
-                    }
-                }
-            }
-
-            public class Grid {
-                private GridCell[,] _grid = new GridCell[0, 0];
-                public Grid(int sizeY, int sizeX) {
-                    _grid = new GridCell[sizeY, sizeX];
-                    Reset();
-                }
-                public void Reset() {
-                    _grid = new GridCell[_grid.GetLength(0), _grid.GetLength(1)];
-                    for (int y = 0; y < _grid.GetLength(0); y++) {
-                        for (int x = 0; x < _grid.GetLength(1); x++) {
-                            _grid[y, x] = new();
-                        }
-                    }
-                }
-                public GridCell this[int indexY, int indexX] {
-                    get => _grid[indexY, indexX];
-                    set => _grid[indexY, indexX] = value;
-                }
-                public GridCell this[Coords coords] {
-                    get => this[coords.Y, coords.X];
-                    set => this[coords.Y, coords.X] = value;
-                }
-                public int GetLength(int dimension) => _grid.GetLength(dimension);
-            }
-
             private HashSet<Coords> GetCellsAround(Coords offset) {
                 HashSet<Coords> result = new();
 
                 // generate square of coords
-                for (int y = -1; y <= 1; y++) {
-                    for (int x = -1; x <= 1; x++) {
+                for (var y = -1; y <= 1; y++) {
+                    for (var x = -1; x <= 1; x++) {
                         Coords toAdd = new(x, y);
                         result.Add(toAdd);
                     }
@@ -405,32 +422,31 @@ namespace terminal_minesweeper {
                 }).ToHashSet();
 
                 // remove coords that are outside of the grid
-                result.RemoveWhere(item => item.X >= GridSize.X || item.Y >= GridSize.Y || item.X < 0 || item.Y < 0);
+                result.RemoveWhere(item => item.X >= _gridSize.X || item.Y >= _gridSize.Y || item.X < 0 || item.Y < 0);
 
                 return result;
             }
 
             private List<StringColorData> CreateGridString() {
                 List<StringColorData> output = new();
-                for (int y = 0; y < GridSize.Y; y++) {
-                    for (int x = 0; x < GridSize.X; x++) {
-                        GridCell gridItem = GameGrid[y, x];
-                        StringColorData stringColorData = new("", ConsoleColor.White);
+                for (var y = 0; y < _gridSize.Y; y++) {
+                    for (var x = 0; x < _gridSize.X; x++) {
+                        var gridItem = _gameGrid[y, x];
+                        StringColorData stringColorData = new("", White);
 
                         if (y == 0) stringColorData.Data.CellTop = true;
                         if (x == 0) {
                             stringColorData.Data.CellLeft = true;
-                            stringColorData.Data.UniqueY = y;
                         }
 
                         // show the mines if the game has ended
-                        if ((MineAt(new(x, y)) != null) && (GameEnd || UncoveredCellsCoords.Contains(new(x, y)) || CheatMode)) {
+                        if (MineAt(new(x, y)) != null && (_gameEnd || _uncoveredCellsCoords.Contains(new(x, y)) || _cheatMode)) {
                             gridItem.Type = GridCellDisplayType.Mine;
                         }
 
                         // draw cursor
                         if (CurPos.X == x && CurPos.Y == y) {
-                            stringColorData.BGColor = ConsoleColor.DarkGray;
+                            stringColorData.BgColor = DarkGray;
                         }
 
                         // update stringColorData with data from gridItem
@@ -439,32 +455,32 @@ namespace terminal_minesweeper {
 
                         // draw numbers
                         if (gridItem.Type == GridCellDisplayType.Uncovered) {
-                            int? number = gridItem.Data.Number;
+                            var number = gridItem.Data.Number;
                             stringColorData.String = gridItem.Data.Number + " ";
                             if (number == 0) stringColorData.String = "  ";
 
                             stringColorData.Color = gridItem.Data.Number switch {
-                                1 => ConsoleColor.Blue,
-                                2 => ConsoleColor.Green,
-                                3 => ConsoleColor.Red,
-                                4 => ConsoleColor.DarkBlue,
-                                5 => ConsoleColor.DarkYellow,
-                                6 => ConsoleColor.DarkCyan,
-                                7 => ConsoleColor.Magenta,
-                                8 => ConsoleColor.Yellow,
+                                1 => Blue,
+                                2 => Green,
+                                3 => Red,
+                                4 => DarkBlue,
+                                5 => DarkYellow,
+                                6 => DarkCyan,
+                                7 => Magenta,
+                                8 => Yellow,
                                 _ => stringColorData.Color
                             };
                         }
 
                         // draw flag
-                        if (gridItem.Type == GridCellDisplayType.Flag) stringColorData.Color = ConsoleColor.DarkRed;
+                        if (gridItem.Type == GridCellDisplayType.Flag) stringColorData.Color = DarkRed;
 
                         output.Add(stringColorData);
                     }
-                    output.Add(new("\n", ConsoleColor.White));
+                    output.Add(new("\n", White));
                 }
 
-                const ConsoleColor currentPosColor = ConsoleColor.DarkCyan;
+                const ConsoleColor currentPosColor = DarkCyan;
 
                 // add the horizontal grid border (A, B, C, ...)
                 AddHorizontalBorder(ref output, currentPosColor);
@@ -477,13 +493,13 @@ namespace terminal_minesweeper {
             }
 
             private void AddHorizontalBorder(ref List<StringColorData> output, ConsoleColor currentPosColor) {
-                string loopingAlphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-                int alphabetFullLoopCount = 0;
-                List<StringColorData> topCells = output.Where(item => item.Data.CellTop != null && (bool)item.Data.CellTop).ToList();
-                int currentX = 0;
-                foreach (var topCell in topCells) {
+                var loopingAlphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+                var alphabetFullLoopCount = 0;
+                var topCells = output.Where(item => item.Data.CellTop != null && (bool)item.Data.CellTop).ToList();
+                var currentX = 0;
+                foreach (var _ in topCells) {
                     StringColorData toAdd = new(loopingAlphabet[0] + (alphabetFullLoopCount == 0 ? " " : "'")) {
-                        Color = CurPos.X == currentX ? currentPosColor : ConsoleColor.Gray
+                        Color = CurPos.X == currentX ? currentPosColor : Gray
                     };
 
                     output.Insert(currentX, toAdd);
@@ -492,26 +508,28 @@ namespace terminal_minesweeper {
                     if (loopingAlphabet.StartsWith('A')) alphabetFullLoopCount++;
                     currentX++;
                 }
-                for (int i = 0; i < 2; i++) {
+                for (var i = 0; i < 2; i++) {
                     output.Insert(topCells.Count + i, "\n");
                 }
             }
 
             private void AddVerticalBorder(ref List<StringColorData> output, ConsoleColor currentPosColor) {
-                int line = 0;
-                int numbersFullLoopCount = -1;
-                List<StringColorData> leftCells = output.Where(item => item.Data.CellLeft != null && (bool)item.Data.CellLeft).ToList();
+                var line = 0;
+                var numbersFullLoopCount = -1;
+                var leftCells = output.Where(item => item.Data.CellLeft != null && (bool)item.Data.CellLeft).ToList();
                 foreach (var leftCell in leftCells) {
-                    int displayNum = (line % 9) + 1;
+                    var displayNum = line % 9 + 1;
                     if (displayNum == 1) numbersFullLoopCount++;
-                    string spaceAfterNumber = "";
-                    if (numbersFullLoopCount == 1) spaceAfterNumber = "'";
-                    if (numbersFullLoopCount > 1) spaceAfterNumber = "\"";
+                    var spaceAfterNumber = numbersFullLoopCount switch {
+                        1 => "'",
+                        > 1 => "\"",
+                        _ => ""
+                    };
                     if (numbersFullLoopCount > 2) spaceAfterNumber = "\"'";
                     spaceAfterNumber += new string(' ', 3 - spaceAfterNumber.Length);
 
                     StringColorData toAdd = new(displayNum + spaceAfterNumber) {
-                        Color = CurPos.Y == line ? currentPosColor : ConsoleColor.Gray
+                        Color = CurPos.Y == line ? currentPosColor : Gray
                     };
 
                     var leftCellIndex = output.IndexOf(leftCell);
@@ -522,35 +540,76 @@ namespace terminal_minesweeper {
                 }
                 output.Insert(0, "    ");
             }
+
+            public class GridCell {
+                public enum GridCellDisplayType {
+                    Covered,
+                    Uncovered,
+                    Flag,
+                    Mine
+                }
+                public readonly GridCellDisplayData Data = new();
+                public GridCellDisplayType Type;
+                public GridCell(GridCellDisplayType type = GridCellDisplayType.Covered, GridCellDisplayData? data = null) {
+                    Type = type;
+                    Data = data ?? Data;
+
+                }
+                public class GridCellDisplayData {
+                    public int? Number;
+                    public GridCellDisplayData(int? number = null) {
+                        Number = number;
+                    }
+                }
+            }
+
+            private class Grid {
+                private GridCell[,] _grid;
+                public Grid(int sizeY, int sizeX) {
+                    _grid = new GridCell[sizeY, sizeX];
+                    Reset();
+                }
+                public GridCell this[int indexY, int indexX] => _grid[indexY, indexX];
+                public GridCell this[Coords coords] => this[coords.Y, coords.X];
+
+                private void Reset() {
+                    _grid = new GridCell[_grid.GetLength(0), _grid.GetLength(1)];
+                    for (var y = 0; y < _grid.GetLength(0); y++) {
+                        for (var x = 0; x < _grid.GetLength(1); x++) {
+                            _grid[y, x] = new();
+                        }
+                    }
+                }
+                public int GetLength(int dimension) {
+                    return _grid.GetLength(dimension);
+                }
+            }
         }
 
         private static class ConsoleResize {
-            private static Coords? previousSize = null;
-            private static Coords? _currentSize = null;
+            private static Coords? _previousSize;
+            private static Coords? _currentSize;
             private static Coords? CurrentSize {
                 get => _currentSize;
                 set {
-                    previousSize = _currentSize;
+                    _previousSize = _currentSize;
                     _currentSize = value;
                 }
             }
             public static bool CheckResized() {
-                CurrentSize = new(Console.BufferWidth, Console.BufferHeight);
-                return CurrentSize != previousSize;
+                CurrentSize = new Coords(Console.BufferWidth, Console.BufferHeight);
+                return CurrentSize != _previousSize;
             }
-        }
-
-        private static void PrintColoredStrings(List<StringColorData> colorStringData) {
-            foreach (var colorStringPair in colorStringData) {
-                Console.ForegroundColor = colorStringPair.Color;
-                Console.BackgroundColor = colorStringPair.BGColor ?? default;
-                Console.Write(colorStringPair.String);
-            }
-            Console.ForegroundColor = ConsoleColor.White;
-            Console.WriteLine();
         }
 
         public class Mine {
+            public static readonly Dictionary<GridCellDisplayType, string> GridCellDisplayTypeStringDict = new() {
+                [GridCellDisplayType.Flag] = "⚑ ",
+                [GridCellDisplayType.Mine] = "💣",
+                [GridCellDisplayType.Covered] = "■ "
+            };
+
+            public Coords Coordinates;
             public Mine(Coords? coords = null) {
                 coords ??= new(0, 0);
                 Coordinates = (Coords)coords;
@@ -559,66 +618,54 @@ namespace terminal_minesweeper {
             public bool IsAt(Coords coords) {
                 return Coordinates == coords;
             }
-
-            public Coords Coordinates = new(0, 0);
-
-            public static Dictionary<GridCellDisplayType, string> GridCellDisplayTypeStringDict = new() {
-                [GridCellDisplayType.Flag] = "⚑ ",
-                [GridCellDisplayType.Mine] = "💣",
-                [GridCellDisplayType.Covered] = "■ "
-            };
         }
 
         public record struct Coords(int X, int Y);
+
         private class StringColorData {
-            public string String = "";
-            public ConsoleColor Color;
-            public ConsoleColor? BGColor = null;
-            public AdditionalData Data = new();
+            public readonly AdditionalData Data = new();
+            public ConsoleColor? BgColor;
+            public ConsoleColor? Color;
+            public string String;
 
-            public StringColorData(string str, ConsoleColor color = ConsoleColor.White, ConsoleColor? bgColor = null, AdditionalData? data = null) {
+            public StringColorData(string str, ConsoleColor? color = null, ConsoleColor? bgColor = null, AdditionalData? data = null) {
                 String = str;
-                Color = color;
-                BGColor = bgColor ?? BGColor;
+                Color = color ?? Color;
+                BgColor = bgColor ?? BgColor;
                 Data = data ?? Data;
-            }
-
-            public class AdditionalData {
-                public bool? CellLeft;
-                public bool? CellTop;
-                public int? UniqueY;
             }
 
             public static implicit operator StringColorData(string str) {
                 return new(str);
             }
-        }
 
-        private static void JumpToPrevLineClear(int lineCount = 1) {
-            foreach (int _ in Enumerable.Range(0, lineCount)) {
-                Console.CursorTop--;
-                Console.CursorLeft = 0;
-                Console.Write(new string(' ', Console.BufferWidth - 1));
-                Console.CursorLeft = 0;
+            public static implicit operator StringColorData(ValueTuple<string, ConsoleColor> tuple) {
+                return new(tuple.Item1, tuple.Item2);
+            }
+
+            public class AdditionalData {
+                public bool? CellLeft;
+                public bool? CellTop;
             }
         }
 
-        private static void ClearConsoleKeyInput() {
-            if (Console.KeyAvailable) Console.ReadKey(true);
-        }
-
-        private static int NumInput(string prompt, string? defaultInput, int? defaultOutput, int? min = null) {
-            bool ok = false;
-            int input = 0;
-            while (!ok) {
-                Console.Write(prompt);
-                string readLine = Console.ReadLine() ?? "";
-                ok = int.TryParse(readLine, out input);
-                if (defaultInput != null && defaultOutput != null && readLine == defaultInput) return (int)defaultOutput;
-                if (min != null && input < min) ok = false;
-                if (!ok) JumpToPrevLineClear();
+        private class StringColorDataList {
+            private readonly List<StringColorData> _data;
+            public StringColorDataList(ConsoleColor? defaultColor = null, params StringColorData[] dataParams) {
+                if (defaultColor is not null) {
+                    dataParams = dataParams.Select(i => {
+                        i.Color ??= defaultColor;
+                        return i;
+                    }).ToArray();
+                }
+                _data = dataParams.ToList();
             }
-            return input;
+
+            public StringColorDataList(params StringColorData[] dataParams) : this(null, dataParams) { }
+
+            public static implicit operator List<StringColorData>(StringColorDataList dataList) {
+                return dataList._data.ToList();
+            }
         }
     }
 }
