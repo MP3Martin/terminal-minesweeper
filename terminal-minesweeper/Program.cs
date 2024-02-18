@@ -157,19 +157,20 @@ namespace terminal_minesweeper {
                 // calculate neighbour mine count for every cell
                 RecalculateCellNumbers();
 
-                var gameWon = false;
-                while (!_gameEnd) {
+                bool gameWon;
+                while (true) {
                     UpdateTerminal();
                     UserInput();
                     UncoverCell(CurPos);
-                    if (MineAt(CurPos) != null) {
-                        _gameEnd = true;
+                    if (IsMineAt(CurPos)) {
                         gameWon = false;
+                        break;
                     }
+                    // ReSharper disable once InvertIf
                     if (_uncoveredCellsCoords.Count + _mines.Count == _gridSize.X * _gridSize.Y) {
-                        _gameEnd = true;
                         gameWon = true;
-                        if (_uncoveredCellsCoords.Any(coords => MineAt(coords) != null)) gameWon = false;
+                        if (_uncoveredCellsCoords.Any(IsMineAt)) gameWon = false;
+                        break;
                     }
                 }
                 UpdateTerminal();
@@ -208,9 +209,9 @@ namespace terminal_minesweeper {
             private void RecalculateCellNumbers() {
                 for (var y = 0; y < _gridSize.Y; y++) {
                     for (var x = 0; x < _gridSize.X; x++) {
-                        if (MineAt(new(x, y)) != null) continue;
+                        if (IsMineAt(new(x, y))) continue;
                         var cellsAround = GetCellsAround(new(x, y));
-                        var mineCountAround = cellsAround.Count(cell => MineAt(cell) != null);
+                        var mineCountAround = cellsAround.Count(IsMineAt);
                         _gameGrid[y, x].Data.Number = mineCountAround;
                     }
 
@@ -315,7 +316,7 @@ namespace terminal_minesweeper {
                             if (_flaggedCellsCoords.Contains(CurPos) || _uncoveredCellsCoords.Contains(CurPos)) break;
 
                             // move/remove the mine if it is the first thing the user reveals
-                            var mineAtCurPos = MineAt(CurPos);
+                            var mineAtCurPos = GetMineAt(CurPos);
                             if (_uncoveredCellsCoords.Count == 0 && mineAtCurPos != null) {
                                 if (_mines.Count > 1) {
                                     _mines.Remove(mineAtCurPos);
@@ -367,9 +368,12 @@ namespace terminal_minesweeper {
                 PrintColoredStrings(CreateGridString(), defaultBackgroundColor: _defaultBackgroundColor);
             }
 
-            private Mine? MineAt(Coords coords) {
+            private Mine? GetMineAt(Coords coords) {
                 _coordsMinesMap.TryGetValue(coords, out var result);
                 return result;
+            }
+            private bool IsMineAt(Coords coords) {
+                return GetMineAt(coords) != null;
             }
 
             private static void UpdateGrid(ref Grid grid, HashSet<Coords> flagsCoords, HashSet<Coords> uncoveredCoords) {
@@ -440,7 +444,7 @@ namespace terminal_minesweeper {
                         }
 
                         // show the mines if the game has ended
-                        if (MineAt(new(x, y)) != null && (_gameEnd || _uncoveredCellsCoords.Contains(new(x, y)) || _cheatMode)) {
+                        if (IsMineAt(new(x, y)) && (_gameEnd || _uncoveredCellsCoords.Contains(new(x, y)) || _cheatMode)) {
                             gridItem.Type = GridCellDisplayType.Mine;
                         }
 
