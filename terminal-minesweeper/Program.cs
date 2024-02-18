@@ -4,6 +4,7 @@ using static terminal_minesweeper.Program.Mine;
 using static terminal_minesweeper.Program.MinesweeperGame.GridCell;
 using static terminal_minesweeper.Utils;
 
+// TODO: Handle input in another thread
 namespace terminal_minesweeper {
     internal static class Program {
         private static void Main() {
@@ -131,17 +132,17 @@ namespace terminal_minesweeper {
                 Console.Clear();
                 Console.WriteLine("Generating...");
                 // reset vars
-                CurPos = new(0, 0);
-                _gameGrid = new(_gridSize.Y, _gridSize.X);
-                _mines = new();
                 _coordsMinesMap = new();
+                CurPos = new(0, 0);
                 _flaggedCellsCoords = new();
-                _uncoveredCellsCoords = new();
-                _manuallyUncoveredCells = 0;
                 _gameEnd = false;
+                _gameGrid = new(_gridSize.Y, _gridSize.X);
+                _cheated = false;
                 _cheatMode = false;
                 _cheatModeTyping = "";
-                _cheated = false;
+                _manuallyUncoveredCells = 0;
+                _mines = new();
+                _uncoveredCellsCoords = new();
 
                 // generate random mines
                 do {
