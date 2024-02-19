@@ -19,7 +19,7 @@ namespace terminal_minesweeper {
             }
         }
 
-        private class StringColorData {
+        public class StringColorData {
             public readonly AdditionalData Data = new();
             public ConsoleColor? BgColor;
             public ConsoleColor? Color;

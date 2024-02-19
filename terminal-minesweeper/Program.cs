@@ -44,47 +44,6 @@ namespace terminal_minesweeper {
             Console.CursorVisible = true;
         }
 
-        private static void PrintColoredStrings(StringColorData colorStringData, bool noNewLine = false, ConsoleColor? defaultBackgroundColor = null, ConsoleColor? defaultColor = null) {
-            PrintColoredStrings(new List<StringColorData> { colorStringData }, noNewLine, defaultBackgroundColor, defaultColor);
-        }
-        private static void PrintColoredStrings(List<StringColorData> colorStringData, bool noNewLine = false, ConsoleColor? defaultBackgroundColor = null, ConsoleColor? defaultColor = null) {
-            var toPrint = new StringBuilder();
-            foreach (var colorStringDataItem in colorStringData) {
-                var foregroundColor = colorStringDataItem.Color ?? defaultColor ?? White;
-                var backgroundColor = colorStringDataItem.BgColor ?? defaultBackgroundColor ?? Console.BackgroundColor;
-
-                toPrint.Append(ConsoleColorToAnsi(foregroundColor, false) + ConsoleColorToAnsi(backgroundColor, true) + colorStringDataItem.String + "\x1b[0m");
-            }
-            if (!noNewLine) toPrint.AppendLine();
-            Console.Write(toPrint.ToString());
-        }
-
-        private static void JumpToPrevLineClear(int lineCount = 1) {
-            foreach (var _ in Enumerable.Range(0, lineCount)) {
-                Console.CursorTop--;
-                Console.CursorLeft = 0;
-                Console.Write(new string(' ', Console.BufferWidth - 1));
-                Console.CursorLeft = 0;
-            }
-        }
-
-        private static void ClearConsoleKeyInput() {
-            if (Console.KeyAvailable) Console.ReadKey(true);
-        }
-
-        private static int NumInput(List<StringColorData> prompt, ConsoleColor defaultBackgroundColor, string? defaultInput, int? defaultOutput, int? min = null) {
-            var ok = false;
-            var input = 0;
-            while (!ok) {
-                PrintColoredStrings(prompt, true, defaultBackgroundColor);
-                var readLine = Console.ReadLine() ?? "";
-                ok = int.TryParse(readLine, out input);
-                if (defaultInput != null && defaultOutput != null && readLine == defaultInput) return (int)defaultOutput;
-                if (input < min) ok = false;
-                if (!ok) JumpToPrevLineClear();
-            }
-            return input;
-        }
         private static class Consts {
             public const string Name = "terminal-minesweeper";
             public const string Version = "v1.0.4";

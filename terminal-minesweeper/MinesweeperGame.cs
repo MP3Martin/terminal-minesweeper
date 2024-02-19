@@ -1,3 +1,5 @@
+using static terminal_minesweeper.Utils;
+
 namespace terminal_minesweeper {
     internal static partial class Program {
         public class MinesweeperGame {
