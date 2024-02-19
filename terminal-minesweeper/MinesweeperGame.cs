@@ -1,8 +1,9 @@
 using static terminal_minesweeper.Utils;
+using static terminal_minesweeper.Program.MinesweeperGame.GridCell;
 
 namespace terminal_minesweeper {
     internal static partial class Program {
-        public class MinesweeperGame {
+        public partial class MinesweeperGame {
             private readonly ConsoleColor _defaultBackgroundColor;
             private readonly Coords _gridSize;
             private readonly int? _mineCount;
@@ -292,15 +293,15 @@ namespace terminal_minesweeper {
             private static void UpdateGrid(ref Grid grid, HashSet<Coords> flagsCoords, HashSet<Coords> uncoveredCoords) {
                 for (var y = 0; y < grid.GetLength(0); y++) {
                     for (var x = 0; x < grid.GetLength(1); x++) {
-                        grid[y, x].Type = GridCell.GridCellDisplayType.Covered;
+                        grid[y, x].Type = GridCellDisplayType.Covered;
                     }
                 }
                 foreach (var flagCoords in flagsCoords) {
-                    grid[flagCoords.Y, flagCoords.X].Type = GridCell.GridCellDisplayType.Flag;
+                    grid[flagCoords.Y, flagCoords.X].Type = GridCellDisplayType.Flag;
 
                 }
                 foreach (var uncoveredCoordsItem in uncoveredCoords) {
-                    grid[uncoveredCoordsItem.Y, uncoveredCoordsItem.X].Type = GridCell.GridCellDisplayType.Uncovered;
+                    grid[uncoveredCoordsItem.Y, uncoveredCoordsItem.X].Type = GridCellDisplayType.Uncovered;
                 }
             }
 
@@ -358,7 +359,7 @@ namespace terminal_minesweeper {
 
                         // show the mines if the game has ended
                         if (IsMineAt(new(x, y)) && (_gameEnd || _uncoveredCellsCoords.Contains(new(x, y)) || _cheatMode)) {
-                            gridItem.Type = GridCell.GridCellDisplayType.Mine;
+                            gridItem.Type = GridCellDisplayType.Mine;
                         }
 
                         // draw cursor
@@ -367,11 +368,11 @@ namespace terminal_minesweeper {
                         }
 
                         // update stringColorData with data from gridItem
-                        Mine.GridCellDisplayTypeStringDict.TryGetValue(gridItem.Type, out var itemStr);
+                        GridCellDisplayTypeStringDict.TryGetValue(gridItem.Type, out var itemStr);
                         stringColorData.String = itemStr ?? "";
 
                         // draw numbers
-                        if (gridItem.Type == GridCell.GridCellDisplayType.Uncovered) {
+                        if (gridItem.Type == GridCellDisplayType.Uncovered) {
                             var number = gridItem.Data.Number;
                             stringColorData.String = gridItem.Data.Number + " ";
                             if (number == 0) stringColorData.String = "  ";
@@ -390,7 +391,7 @@ namespace terminal_minesweeper {
                         }
 
                         // draw flag
-                        if (gridItem.Type == GridCell.GridCellDisplayType.Flag) stringColorData.Color = ConsoleColor.DarkRed;
+                        if (gridItem.Type == GridCellDisplayType.Flag) stringColorData.Color = ConsoleColor.DarkRed;
 
                         output.Add(stringColorData);
                     }
@@ -456,50 +457,6 @@ namespace terminal_minesweeper {
                     line++;
                 }
                 output.Insert(0, "    ");
-            }
-
-            public class GridCell {
-                public enum GridCellDisplayType {
-                    Covered,
-                    Uncovered,
-                    Flag,
-                    Mine
-                }
-                public readonly GridCellDisplayData Data = new();
-                public GridCellDisplayType Type;
-                public GridCell(GridCellDisplayType type = GridCellDisplayType.Covered, GridCellDisplayData? data = null) {
-                    Type = type;
-                    Data = data ?? Data;
-
-                }
-                public class GridCellDisplayData {
-                    public int? Number;
-                    public GridCellDisplayData(int? number = null) {
-                        Number = number;
-                    }
-                }
-            }
-
-            private class Grid {
-                private GridCell[,] _grid;
-                public Grid(int sizeY, int sizeX) {
-                    _grid = new GridCell[sizeY, sizeX];
-                    Reset();
-                }
-                public GridCell this[int indexY, int indexX] => _grid[indexY, indexX];
-                public GridCell this[Coords coords] => this[coords.Y, coords.X];
-
-                private void Reset() {
-                    _grid = new GridCell[_grid.GetLength(0), _grid.GetLength(1)];
-                    for (var y = 0; y < _grid.GetLength(0); y++) {
-                        for (var x = 0; x < _grid.GetLength(1); x++) {
-                            _grid[y, x] = new();
-                        }
-                    }
-                }
-                public int GetLength(int dimension) {
-                    return _grid.GetLength(dimension);
-                }
             }
         }
     }
