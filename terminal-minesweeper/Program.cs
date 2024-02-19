@@ -47,7 +47,7 @@ namespace terminal_minesweeper {
 
         private static class Consts {
             public const string Name = "terminal-minesweeper";
-            public const string Version = "v1.0.4";
+            public const string Version = "v1.0.5";
             public const string CheatCode = "cheat";
         }
 

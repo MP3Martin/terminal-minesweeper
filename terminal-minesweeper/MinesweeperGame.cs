@@ -87,6 +87,7 @@ namespace terminal_minesweeper {
                         break;
                     }
                 }
+                _gameEnd = true;
                 UpdateTerminal();
                 Thread.Sleep(300);
                 ClearConsoleKeyInput();
