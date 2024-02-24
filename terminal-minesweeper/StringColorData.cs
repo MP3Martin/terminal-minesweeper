@@ -20,7 +20,7 @@ namespace terminal_minesweeper {
         }
 
         public class StringColorData {
-            public readonly AdditionalData Data = new();
+            private AdditionalData? _data;
             public ConsoleColor? BgColor;
             public ConsoleColor? Color;
             public string String;
@@ -29,15 +29,21 @@ namespace terminal_minesweeper {
                 String = str;
                 Color = color ?? Color;
                 BgColor = bgColor ?? BgColor;
-                Data = data ?? Data;
+                _data = data;
+            }
+            public AdditionalData Data {
+                get {
+                    _data ??= new();
+                    return _data;
+                }
             }
 
             public static implicit operator StringColorData(string str) {
                 return new(str);
             }
 
-            public static implicit operator StringColorData(ValueTuple<string, ConsoleColor> tuple) {
-                return new(tuple.Item1, tuple.Item2);
+            public static implicit operator StringColorData((string str, ConsoleColor color) tuple) {
+                return new(tuple.str, tuple.color);
             }
 
             public class AdditionalData {

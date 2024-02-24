@@ -40,7 +40,6 @@ x64/
 *.vssscc
 .builds
 *.pidb
-*.log
 *.svclog
 *.scc
 

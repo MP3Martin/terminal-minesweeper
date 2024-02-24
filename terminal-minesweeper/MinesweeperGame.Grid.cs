@@ -18,9 +18,6 @@ namespace terminal_minesweeper {
                         }
                     }
                 }
-                public int GetLength(int dimension) {
-                    return _grid.GetLength(dimension);
-                }
             }
         }
     }

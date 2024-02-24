@@ -1,6 +1,7 @@
 ﻿using System.Text;
 using static System.ConsoleColor;
 using static terminal_minesweeper.Program;
+using Timer = System.Timers.Timer;
 
 namespace terminal_minesweeper {
     internal static class Utils {
@@ -39,22 +40,33 @@ namespace terminal_minesweeper {
             if (Console.KeyAvailable) Console.ReadKey(true);
         }
 
-        public static void PrintColoredStrings(StringColorData colorStringData, bool noNewLine = false, ConsoleColor? defaultBackgroundColor = null, ConsoleColor? defaultColor = null) {
+        public static void PrintColoredStrings(StringColorData colorStringData, bool noNewLine = false, ConsoleColor? defaultBackgroundColor = null,
+            ConsoleColor? defaultColor = null) {
             PrintColoredStrings(new List<StringColorData> { colorStringData }, noNewLine, defaultBackgroundColor, defaultColor);
         }
-        public static void PrintColoredStrings(List<StringColorData> colorStringData, bool noNewLine = false, ConsoleColor? defaultBackgroundColor = null, ConsoleColor? defaultColor = null) {
+        public static void PrintColoredStrings(List<StringColorData> colorStringData, bool noNewLine = false, ConsoleColor? defaultBackgroundColor = null,
+            ConsoleColor? defaultColor = null, Action<string>? customPrint = null) {
             var toPrint = new StringBuilder();
             foreach (var colorStringDataItem in colorStringData) {
                 var foregroundColor = colorStringDataItem.Color ?? defaultColor ?? White;
                 var backgroundColor = colorStringDataItem.BgColor ?? defaultBackgroundColor ?? Console.BackgroundColor;
 
-                toPrint.Append(ConsoleColorToAnsi(foregroundColor, false) + ConsoleColorToAnsi(backgroundColor, true) + colorStringDataItem.String + "\x1b[0m");
+                toPrint.Append(ConsoleColorToAnsi(foregroundColor, false) +
+                    ConsoleColorToAnsi(backgroundColor, true) +
+                    colorStringDataItem.String +
+                    "\x1b[0m");
             }
             if (!noNewLine) toPrint.AppendLine();
-            Console.Write(toPrint.ToString());
+            var stringToPrint = toPrint.ToString();
+            if (customPrint is null) {
+                Console.Write(stringToPrint);
+            } else {
+                customPrint(stringToPrint);
+            }
         }
 
-        public static int NumInput(List<StringColorData> prompt, ConsoleColor defaultBackgroundColor, string? defaultInput, int? defaultOutput, int? min = null) {
+        public static int NumInput(List<StringColorData> prompt, ConsoleColor defaultBackgroundColor, string? defaultInput, int? defaultOutput,
+            int? min = null) {
             var ok = false;
             var input = 0;
             while (!ok) {
@@ -66,6 +78,44 @@ namespace terminal_minesweeper {
                 if (!ok) JumpToPrevLineClear();
             }
             return input;
+        }
+
+        public class MyTimer {
+            private readonly Action _toRun;
+            public readonly Action Start;
+
+            private Timer _timer = new();
+
+            public MyTimer(Action toRun, int interval) {
+                Start = () => {
+                    _timer = new Timer();
+                    _timer.Elapsed += (_, _) => {
+                        try {
+                            _toRun?.Invoke();
+                        }
+                        catch (Exception) {
+                            // ignored
+                        }
+                    };
+                    _timer.Interval = interval;
+                    _timer.Enabled = true;
+                };
+
+
+                _toRun = toRun;
+            }
+            public void Stop() {
+                _timer.Stop();
+            }
+            public void Dispose() {
+                _timer.Stop();
+                _timer.Dispose();
+            }
+
+            public void ResetTimerCountdown() {
+                _timer.Stop();
+                _timer.Start();
+            }
         }
     }
 }

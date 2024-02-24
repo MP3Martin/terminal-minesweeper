@@ -11,7 +11,7 @@ namespace terminal_minesweeper {
                 }
             }
             public static bool CheckResized() {
-                CurrentSize = new Coords(Console.BufferWidth, Console.BufferHeight);
+                CurrentSize = new(Console.BufferWidth, Console.BufferHeight);
                 return CurrentSize != _previousSize;
             }
         }

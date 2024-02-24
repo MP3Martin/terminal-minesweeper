@@ -27,12 +27,17 @@ namespace terminal_minesweeper {
 
             const int defaultGameSize = 10;
             Coords gameSize = new() {
-                X = NumInput(new StringColorDataList(Gray, "↔️ Enter game ", ("width  ", White), "(press enter for default): "), defaultBackgroundColor, "", defaultGameSize, 3),
-                Y = NumInput(new StringColorDataList(Gray, "↕️ Enter game ", ("height ", White), "(press enter for default): "), defaultBackgroundColor, "", defaultGameSize, 3)
+                X = NumInput(new StringColorDataList(Gray, "↔️ Enter game ", ("width  ", White), "(press enter for default): "), defaultBackgroundColor,
+                    "", defaultGameSize, 3),
+                Y = NumInput(new StringColorDataList(Gray, "↕️ Enter game ", ("height ", White), "(press enter for default): "), defaultBackgroundColor,
+                    "", defaultGameSize, 3)
             };
-            int? mineCount = NumInput(new StringColorDataList(Gray, "💣 Enter ", ("mine count  ", White), "(press enter for default): "), defaultBackgroundColor, "", -1, 1);
+            int? mineCount = NumInput(new StringColorDataList(Gray, "💣 Enter ", ("mine count  ", White), "(press enter for default): "),
+                defaultBackgroundColor, "", -1, 1);
             mineCount = mineCount == -1 ? null : mineCount;
+
             Console.CursorVisible = false;
+
             MinesweeperGame game = new(gameSize, defaultBackgroundColor, mineCount);
 
             Console.CancelKeyPress += (_, _) => {
@@ -47,7 +52,7 @@ namespace terminal_minesweeper {
 
         private static class Consts {
             public const string Name = "terminal-minesweeper";
-            public const string Version = "v1.0.5";
+            public const string Version = "v1.0.6";
             public const string CheatCode = "cheat";
         }
 

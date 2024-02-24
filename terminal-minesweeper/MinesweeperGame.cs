@@ -1,21 +1,24 @@
 using static terminal_minesweeper.Utils;
 using static terminal_minesweeper.Program.MinesweeperGame.GridCell;
+using static terminal_minesweeper.Program.CanvasPrinting;
 
 namespace terminal_minesweeper {
     internal static partial class Program {
         public partial class MinesweeperGame {
+            private readonly CanvasPrinting _canvasPrinting = new();
             private readonly ConsoleColor _defaultBackgroundColor;
             private readonly Coords _gridSize;
             private readonly int? _mineCount;
             private readonly Random _randomGen = new();
+            private MyTimer _canvasUpdateAfterIdleTimer = null!;
+            private bool _cheated;
+            private bool _cheatMode;
+            private string _cheatModeTyping = "";
             private Dictionary<Coords, Mine> _coordsMinesMap = new();
             private Coords _curPos;
             private HashSet<Coords> _flaggedCellsCoords = new();
             private bool _gameEnd;
             private Grid _gameGrid = new(0, 0);
-            private bool _cheated;
-            private bool _cheatMode;
-            private string _cheatModeTyping = "";
             private int _manuallyUncoveredCells;
             private List<Mine> _mines = new();
             private HashSet<Coords> _uncoveredCellsCoords = new();
@@ -28,6 +31,7 @@ namespace terminal_minesweeper {
                 _mineCount = Math.Min((int)_mineCount, _gridSize.X * _gridSize.Y);
 
                 _defaultBackgroundColor = defaultBackgroundColor;
+
             }
             private Coords CurPos {
                 get => _curPos;
@@ -37,14 +41,23 @@ namespace terminal_minesweeper {
                     if (value.X >= _gridSize.X) value.X = 0;
                     if (value.X < 0) value.X = _gridSize.X - 1;
                     _curPos = value;
+
                 }
             }
 
             /// <returns>If the user requested the game to exit</returns>
             public bool Loop() {
                 Console.Clear();
+
                 Console.WriteLine("Generating...");
+
                 // reset vars
+                _canvasPrinting.Enabled = false;
+                _canvasUpdateAfterIdleTimer = new(() => {
+                    _canvasUpdateAfterIdleTimer.Stop();
+                    UpdateTerminal();
+                }, 100);
+                _canvasUpdateAfterIdleTimer.Stop();
                 _coordsMinesMap = new();
                 CurPos = new(0, 0);
                 _flaggedCellsCoords = new();
@@ -56,6 +69,7 @@ namespace terminal_minesweeper {
                 _manuallyUncoveredCells = 0;
                 _mines = new();
                 _uncoveredCellsCoords = new();
+
 
                 // generate random mines
                 do {
@@ -70,6 +84,9 @@ namespace terminal_minesweeper {
 
                 // calculate neighbour mine count for every cell
                 RecalculateCellNumbers();
+
+                // Enable canvas printing
+                _canvasPrinting.Enabled = true;
 
                 bool gameWon;
                 while (true) {
@@ -88,12 +105,16 @@ namespace terminal_minesweeper {
                     }
                 }
                 _gameEnd = true;
-                UpdateTerminal();
+
+                _canvasUpdateAfterIdleTimer.Dispose();
+                _canvasPrinting.DisableWaitForFinish();
+
+                UpdateTerminal(true);
                 Thread.Sleep(300);
                 ClearConsoleKeyInput();
                 // hide the cursor
                 _curPos = new(-1, -1);
-                UpdateTerminal();
+                UpdateTerminal(true);
 
                 Console.ForegroundColor = ConsoleColor.White;
                 Console.Write("\nYou ");
@@ -111,7 +132,8 @@ namespace terminal_minesweeper {
                     $"out of {_mines.Count} mines were flagged)"
                 );
                 if (_cheated) {
-                    PrintColoredStrings(new StringColorData("⚠️ Warning: Cheat mode was activated at least once while playing this round! ⚠️", ConsoleColor.DarkYellow));
+                    PrintColoredStrings(new StringColorData("⚠️ Warning: Cheat mode was activated at least once while playing this round! ⚠️",
+                        ConsoleColor.DarkYellow));
                 }
                 return EndScreenInput();
             }
@@ -184,6 +206,7 @@ namespace terminal_minesweeper {
                 var uncovered = false;
                 while (!uncovered) {
                     UpdateTerminal();
+                    _canvasUpdateAfterIdleTimer.ResetTimerCountdown();
                     var input = Console.ReadKey(true);
 
                     // cheat mode
@@ -276,11 +299,17 @@ namespace terminal_minesweeper {
                 }
             }
 
-            private void UpdateTerminal() {
+            private void UpdateTerminal(bool sync = false) {
                 if (ConsoleResize.CheckResized()) Console.Clear();
-                Console.SetCursorPosition(0, 0);
-                UpdateGrid(ref _gameGrid, _flaggedCellsCoords, _uncoveredCellsCoords);
-                PrintColoredStrings(CreateGridString(), defaultBackgroundColor: _defaultBackgroundColor);
+                UpdateGrid();
+                PrintColoredStrings(CreateGridString(), defaultBackgroundColor: _defaultBackgroundColor, customPrint: s => {
+                    if (sync) {
+                        Console.Write(CursorAtZeroZero);
+                        Console.Write(s);
+                    } else {
+                        _canvasPrinting.Print(s);
+                    }
+                });
             }
 
             private Mine? GetMineAt(Coords coords) {
@@ -291,17 +320,18 @@ namespace terminal_minesweeper {
                 return GetMineAt(coords) != null;
             }
 
-            private static void UpdateGrid(ref Grid grid, HashSet<Coords> flagsCoords, HashSet<Coords> uncoveredCoords) {
-                for (var y = 0; y < grid.GetLength(0); y++) {
-                    for (var x = 0; x < grid.GetLength(1); x++) {
+            private void UpdateGrid() {
+                var grid = _gameGrid;
+                for (var y = 0; y < _gridSize.Y; y++) {
+                    for (var x = 0; x < _gridSize.X; x++) {
                         grid[y, x].Type = GridCellDisplayType.Covered;
                     }
                 }
-                foreach (var flagCoords in flagsCoords) {
+                foreach (var flagCoords in _flaggedCellsCoords) {
                     grid[flagCoords.Y, flagCoords.X].Type = GridCellDisplayType.Flag;
 
                 }
-                foreach (var uncoveredCoordsItem in uncoveredCoords) {
+                foreach (var uncoveredCoordsItem in _uncoveredCellsCoords) {
                     grid[uncoveredCoordsItem.Y, uncoveredCoordsItem.X].Type = GridCellDisplayType.Uncovered;
                 }
             }
@@ -440,11 +470,12 @@ namespace terminal_minesweeper {
                     var displayNum = line % 9 + 1;
                     if (displayNum == 1) numbersFullLoopCount++;
                     var spaceAfterNumber = numbersFullLoopCount switch {
-                        1 => "'",
+                        > 3 => "\"\"",
+                        > 2 => "\"'",
                         > 1 => "\"",
+                        1 => "'",
                         _ => ""
                     };
-                    if (numbersFullLoopCount > 2) spaceAfterNumber = "\"'";
                     spaceAfterNumber += new string(' ', 3 - spaceAfterNumber.Length);
 
                     StringColorData toAdd = new(displayNum + spaceAfterNumber) {
