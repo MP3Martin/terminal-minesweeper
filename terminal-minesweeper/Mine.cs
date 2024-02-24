@@ -7,6 +7,7 @@ namespace terminal_minesweeper {
                 Coordinates = (Coords)coords;
             }
 
+            // ReSharper disable once UnusedMember.Global
             public bool IsAt(Coords coords) {
                 return Coordinates == coords;
             }

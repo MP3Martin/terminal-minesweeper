@@ -405,27 +405,33 @@ namespace terminal_minesweeper {
                         GridCellDisplayTypeStringDict.TryGetValue(gridItem.Type, out var itemStr);
                         stringColorData.String = itemStr ?? "";
 
-                        // draw numbers
-                        if (gridItem.Type == GridCellDisplayType.Uncovered) {
-                            var number = gridItem.Data.Number;
-                            stringColorData.String = gridItem.Data.Number + " ";
-                            if (number == 0) stringColorData.String = "  ";
+                        // ReSharper disable once SwitchStatementMissingSomeEnumCasesNoDefault
+                        switch (gridItem.Type) {
+                            // draw numbers
+                            case GridCellDisplayType.Uncovered:
+                            {
+                                var number = gridItem.Data.Number;
+                                stringColorData.String = gridItem.Data.Number + " ";
+                                if (number == 0) stringColorData.String = "  ";
 
-                            stringColorData.Color = gridItem.Data.Number switch {
-                                1 => ConsoleColor.Blue,
-                                2 => ConsoleColor.Green,
-                                3 => ConsoleColor.Red,
-                                4 => ConsoleColor.DarkBlue,
-                                5 => ConsoleColor.DarkYellow,
-                                6 => ConsoleColor.DarkCyan,
-                                7 => ConsoleColor.Magenta,
-                                8 => ConsoleColor.Yellow,
-                                _ => stringColorData.Color
-                            };
+                                stringColorData.Color = gridItem.Data.Number switch {
+                                    1 => ConsoleColor.Blue,
+                                    2 => ConsoleColor.Green,
+                                    3 => ConsoleColor.Red,
+                                    4 => ConsoleColor.DarkBlue,
+                                    5 => ConsoleColor.DarkYellow,
+                                    6 => ConsoleColor.DarkCyan,
+                                    7 => ConsoleColor.Magenta,
+                                    8 => ConsoleColor.Yellow,
+                                    _ => stringColorData.Color
+                                };
+                                break;
+                            }
+                            // draw flag
+                            case GridCellDisplayType.Flag:
+                                stringColorData.Color = ConsoleColor.DarkRed;
+                                break;
                         }
-
-                        // draw flag
-                        if (gridItem.Type == GridCellDisplayType.Flag) stringColorData.Color = ConsoleColor.DarkRed;
 
                         output.Add(stringColorData);
                     }
