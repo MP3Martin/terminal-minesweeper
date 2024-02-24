@@ -74,7 +74,7 @@ namespace terminal_minesweeper {
                 // generate random mines
                 do {
                     foreach (var _ in Enumerable.Range(0, _mineCount ?? 1)) {
-                        _mines.Add(new());
+                        _mines.Add(new() { Coordinates = new(-1, -1) });
                     }
                     _mines.ForEach(mine => { mine.Coordinates = GetRandomMineCoords(); });
                     _mines.RemoveAll(mine => mine.Coordinates == new Coords(-1, -1));
@@ -90,7 +90,7 @@ namespace terminal_minesweeper {
 
                 bool gameWon;
                 while (true) {
-                    UpdateTerminal();
+                    UpdateTerminal(true);
                     UserInput();
                     UncoverCell(CurPos);
                     if (IsMineAt(CurPos)) {
@@ -144,6 +144,15 @@ namespace terminal_minesweeper {
             }
 
             private void RecalculateCellNumbers() {
+                // Remove removed mines from MinesAtCoords
+                HashSet<Coords> allMineCoords = new(_mines.Select(item => item.Coordinates));
+                foreach (var coords in _coordsMinesMap.Keys.ToList()) {
+                    if (!allMineCoords.Contains(coords)) {
+                        _coordsMinesMap.Remove(coords);
+                    }
+                }
+
+                // Recalculate neighbour mine count for every cell
                 for (var y = 0; y < _gridSize.Y; y++) {
                     for (var x = 0; x < _gridSize.X; x++) {
                         if (IsMineAt(new(x, y))) continue;
@@ -153,22 +162,14 @@ namespace terminal_minesweeper {
                     }
 
                 }
-
-                // Remove removed mines from MinesAtCoords
-                HashSet<Coords> allMineCoords = new(_mines.Select(item => item.Coordinates));
-                foreach (var coords in _coordsMinesMap.Keys.ToList()) {
-                    if (!allMineCoords.Contains(coords)) {
-                        _coordsMinesMap.Remove(coords);
-                    }
-                }
             }
 
             private bool EndScreenInput() {
                 const int enterPressCountToContinue = 3;
-                void PrintKeyInfo(int enterPressCount = enterPressCountToContinue) {
+                void PrintKeyInfo(int enterPressCountdown = enterPressCountToContinue) {
                     PrintColoredStrings(new StringColorDataList(
                         "\nPress ",
-                        new StringColorData($"{(enterPressCount == 0 ? "✓" : enterPressCount)}×ENTER", ConsoleColor.Blue),
+                        new StringColorData($"{(enterPressCountdown == 0 ? "✓" : enterPressCountdown)}×ENTER", ConsoleColor.Blue),
                         "/",
                         new StringColorData("SPACE ", ConsoleColor.Blue),
                         "to ",
@@ -218,7 +219,7 @@ namespace terminal_minesweeper {
                             _cheatMode = true;
                             _cheated = true;
                             _cheatModeTyping = "";
-                            UpdateTerminal();
+                            UpdateTerminal(true);
                         }
                         continue; // ignore the key press if it was a valid next cheat char
                     }
@@ -265,7 +266,10 @@ namespace terminal_minesweeper {
                             }
 
                             // auto-reveal
-                            AutoReveal(CurPos);
+                            if (!IsMineAt(CurPos)) {
+                                AutoReveal(CurPos);
+                            }
+
 
                             _manuallyUncoveredCells++;
                             uncovered = true;
@@ -328,11 +332,11 @@ namespace terminal_minesweeper {
                     }
                 }
                 foreach (var flagCoords in _flaggedCellsCoords) {
-                    grid[flagCoords.Y, flagCoords.X].Type = GridCellDisplayType.Flag;
+                    grid[flagCoords].Type = GridCellDisplayType.Flag;
 
                 }
                 foreach (var uncoveredCoordsItem in _uncoveredCellsCoords) {
-                    grid[uncoveredCoordsItem.Y, uncoveredCoordsItem.X].Type = GridCellDisplayType.Uncovered;
+                    grid[uncoveredCoordsItem].Type = GridCellDisplayType.Uncovered;
                 }
             }
 
