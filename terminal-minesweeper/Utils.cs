@@ -81,40 +81,36 @@ namespace terminal_minesweeper {
         }
 
         public class MyTimer {
-            private readonly Action _toRun;
-            public readonly Action Start;
+            private readonly Timer _timer;
 
-            private Timer _timer = new();
-
-            public MyTimer(Action toRun, int interval) {
-                Start = () => {
-                    _timer = new Timer();
-                    _timer.Elapsed += (_, _) => {
-                        try {
-                            _toRun?.Invoke();
-                        }
-                        catch (Exception) {
-                            // ignored
-                        }
-                    };
-                    _timer.Interval = interval;
-                    _timer.Enabled = true;
+            public MyTimer(Action toRun, int interval, bool start = true, bool autoReset = true) {
+                _timer = new();
+                _timer.Elapsed += (_, _) => {
+                    try {
+                        toRun();
+                    }
+                    catch {
+                        // ignored
+                    }
                 };
-
-
-                _toRun = toRun;
+                _timer.Interval = interval;
+                _timer.Enabled = start;
+                _timer.AutoReset = autoReset;
             }
-            public void Stop() {
+            private void Start() {
+                _timer.Start();
+            }
+            private void Stop() {
                 _timer.Stop();
             }
             public void Dispose() {
-                _timer.Stop();
+                Stop();
                 _timer.Dispose();
             }
 
             public void ResetTimerCountdown() {
-                _timer.Stop();
-                _timer.Start();
+                Stop();
+                Start();
             }
         }
     }

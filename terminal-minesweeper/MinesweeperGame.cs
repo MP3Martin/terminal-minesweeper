@@ -11,14 +11,14 @@ namespace terminal_minesweeper {
             private readonly int? _mineCount;
             private readonly Random _randomGen = new();
             private MyTimer _canvasUpdateAfterIdleTimer = null!;
-            private bool _cheated;
-            private bool _cheatMode;
-            private string _cheatModeTyping = "";
             private Dictionary<Coords, Mine> _coordsMinesMap = new();
             private Coords _curPos;
             private HashSet<Coords> _flaggedCellsCoords = new();
             private bool _gameEnd;
             private Grid _gameGrid = new(0, 0);
+            private bool _cheated;
+            private bool _cheatMode;
+            private string _cheatModeTyping = "";
             private int _manuallyUncoveredCells;
             private List<Mine> _mines = new();
             private HashSet<Coords> _uncoveredCellsCoords = new();
@@ -54,10 +54,9 @@ namespace terminal_minesweeper {
                 // reset vars
                 _canvasPrinting.Enabled = false;
                 _canvasUpdateAfterIdleTimer = new(() => {
-                    _canvasUpdateAfterIdleTimer.Stop();
+                    _canvasPrinting.WaitForFinish();
                     UpdateTerminal();
-                }, 100);
-                _canvasUpdateAfterIdleTimer.Stop();
+                }, 100, false, false);
                 _coordsMinesMap = new();
                 CurPos = new(0, 0);
                 _flaggedCellsCoords = new();

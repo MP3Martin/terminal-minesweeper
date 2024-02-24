@@ -17,6 +17,10 @@ namespace terminal_minesweeper {
             }
             public void DisableWaitForFinish() {
                 Enabled = false;
+                WaitForFinish();
+            }
+
+            public void WaitForFinish() {
                 Task.Run(() => {
                     while (_printing) {
                         Task.Delay(10);
