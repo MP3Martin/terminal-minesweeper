@@ -143,7 +143,7 @@ namespace terminal_minesweeper {
             }
 
             private void RecalculateCellNumbers() {
-                // Remove removed mines from MinesAtCoords
+                // Remove removed mines from _coordsMinesMap
                 HashSet<Coords> allMineCoords = new(_mines.Select(item => item.Coordinates));
                 foreach (var coords in _coordsMinesMap.Keys.ToList()) {
                     if (!allMineCoords.Contains(coords)) {
