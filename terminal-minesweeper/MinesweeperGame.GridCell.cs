@@ -20,7 +20,6 @@ namespace terminal_minesweeper {
                 public GridCell(GridCellDisplayType type = GridCellDisplayType.Covered, GridCellDisplayData? data = null) {
                     Type = type;
                     Data = data ?? Data;
-
                 }
                 public class GridCellDisplayData {
                     public int? Number;

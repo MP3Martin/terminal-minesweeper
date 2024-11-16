@@ -31,7 +31,6 @@ namespace terminal_minesweeper {
                 _mineCount = Math.Min((int)_mineCount, _gridSize.X * _gridSize.Y);
 
                 _defaultBackgroundColor = defaultBackgroundColor;
-
             }
             private Coords CurPos {
                 get => _curPos;
@@ -41,7 +40,6 @@ namespace terminal_minesweeper {
                     if (value.X >= _gridSize.X) value.X = 0;
                     if (value.X < 0) value.X = _gridSize.X - 1;
                     _curPos = value;
-
                 }
             }
 
@@ -159,7 +157,6 @@ namespace terminal_minesweeper {
                         var mineCountAround = cellsAround.Count(IsMineAt);
                         _gameGrid[y, x].Data.Number = mineCountAround;
                     }
-
                 }
             }
 
@@ -332,7 +329,6 @@ namespace terminal_minesweeper {
                 }
                 foreach (var flagCoords in _flaggedCellsCoords) {
                     grid[flagCoords].Type = GridCellDisplayType.Flag;
-
                 }
                 foreach (var uncoveredCoordsItem in _uncoveredCellsCoords) {
                     grid[uncoveredCoordsItem].Type = GridCellDisplayType.Uncovered;
@@ -476,7 +472,7 @@ namespace terminal_minesweeper {
                 var numbersFullLoopCount = -1;
                 var leftCells = output.Where(item => item.Data.CellLeft != null && (bool)item.Data.CellLeft).ToList();
                 foreach (var leftCell in leftCells) {
-                    var displayNum = line % 9 + 1;
+                    var displayNum = (line % 9) + 1;
                     if (displayNum == 1) numbersFullLoopCount++;
                     var spaceAfterNumber = numbersFullLoopCount switch {
                         > 3 => "\"\"",
